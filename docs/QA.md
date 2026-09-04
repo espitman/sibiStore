@@ -14,6 +14,7 @@
 - Both clients return to the library and show installation success and the Open action.
 - Signed phone and TV APK builds passed, including v2/v3 signature verification. Keys are stored privately outside the repository.
 - Production Android transfer code exercised against a real local HTTP socket: interrupted response preserves partial bytes, pause preserves bytes, resume sends the exact Range and If-Range headers, HTTP 200 safely restarts, invalid ranges cannot publish a file, and SHA-256 failure discards corrupted content. Five transfer tests passed alongside the version tests and phone lint.
+- TV inspector alignment and spacing were checked in a fresh emulator screenshot after a full rebuild. The entire default details panel, including From your Mac, is visible. D-pad OK moved focus from the app card to its install button, confirmed through the actual accessibility hierarchy. Shared tests and TV lint passed.
 
 ## Still required before calling the entire implementation complete
 
@@ -23,3 +24,14 @@
 - Physical-device LAN mDNS discovery (manual connection and the Mac announcement are verified, not a substitute for this check).
 
 Test APKs, screenshots, isolated AVDs and runtime databases are under ignored `test-results` directories. No private APK or signing key is committed. Existing emulators used by other projects are not part of this test environment.
+
+## Physical LAN check
+
+1. Build the signed client with its `scripts/release.sh`, then use `scripts/install-release.sh <explicit-serial>` to install on the intended phone/TV. A differently signed debug build is never automatically removed by the script.
+2. Keep the Mac server running, allow local network access, and connect both devices to the same non-guest Wi-Fi/LAN. Do not add a manual server address for the discovery check.
+3. In Settings, choose Search again. Verify that the Mac appears, select it and confirm that the actual library loads.
+4. Change the Mac's LAN address or reconnect it, keeping its stored server ID. Confirm that the saved client reconnects to the same advertised server without selecting a new address.
+5. Stop the server. Within one foreground refresh interval plus the request timeout, the client should show Mac offline while preserving its cached library. Start the server and confirm recovery.
+6. Record the OS versions, whether guest/client isolation was disabled, and the observed discovery/reconnect results. A manual-address success alone does not pass multicast discovery.
+
+If the local JDK cannot open sockets (`Can't assign requested address`), run the same Bash command with `JAVA_TOOL_OPTIONS=-Djava.net.preferIPv4Stack=true`. This affects the build/test JVM, not Android's networking behavior. Kotlin compilation uses the Gradle process and full module metadata generation to avoid stale metadata after interrupted compiler-daemon runs.

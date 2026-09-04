@@ -5,7 +5,7 @@ const script=path.resolve(__dirname,'device.sh');
 const call=(args)=>execFileSync('bash',[script,serial,...args],{encoding:'utf8',maxBuffer:8*1024*1024});
 const xml=call(['ui']);
 const nodes=[...xml.matchAll(/<node\b([^>]+)>?/g)].map(m=>Object.fromEntries([...m[1].matchAll(/([\w-]+)="([^"]*)"/g)].map(a=>[a[1],a[2]])));
-if(action==='list') console.log(nodes.filter(n=>n.text||n['content-desc']).map(n=>({text:n.text,description:n['content-desc'],bounds:n.bounds,focused:n.focused})))
+if(action==='list') console.log(nodes.filter(n=>n.text||n['content-desc']||n.focused==='true').map(n=>({text:n.text,description:n['content-desc'],bounds:n.bounds,focused:n.focused})))
 else if(action==='tap') {
   const node=nodes.find(n=>n.text===text||n['content-desc']===text);
   if(!node) throw Error(`No visible control: ${text}`);

@@ -59,14 +59,14 @@ import com.sibi.store.core.*
                     Spacer(Modifier.width(22.dp)); Text("${apps.size} apps",color=Muted,fontSize=13.sp,modifier=Modifier.padding(top=8.dp))
                 }
                 if(search) OutlinedTextField(value=query,onValueChange={query=it},placeholder={Text("Search apps")},singleLine=true,modifier=Modifier.fillMaxWidth().padding(top=10.dp))
+                Row(Modifier.weight(1f).fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(24.dp)) {
+                    Column(Modifier.weight(1f).fillMaxHeight()) {
                 Row(Modifier.fillMaxWidth().height(44.dp),verticalAlignment=Alignment.CenterVertically) {
                     if(updates.isNotEmpty()) TvControl(onClick={page="Updates"},compact=true) { Icon(Icons.Outlined.DownloadForOffline,null,tint=Gold,modifier=Modifier.size(17.dp)); Text("${updates.size} updates available",color=Gold,fontSize=13.sp,modifier=Modifier.padding(horizontal=9.dp)); Icon(Icons.Outlined.ChevronRight,null,tint=Muted,modifier=Modifier.size(17.dp)) }
                     else Text(if(state.connected) "Your library is up to date" else "Mac offline · showing saved library",color=Muted,fontSize=12.sp)
                     Spacer(Modifier.weight(1f)); TvControl(onClick={model.refresh()},compact=true) { Icon(Icons.Outlined.Refresh,"Refresh",tint=Muted,modifier=Modifier.size(17.dp)) }
                 }
                 if(state.error!=null || state.message!=null) TvControl(onClick={model.clearMessage()},modifier=Modifier.fillMaxWidth(),compact=true) { Text(state.error ?: state.message ?: "",color=Gold,fontSize=11.sp,modifier=Modifier.weight(1f),maxLines=2); Icon(Icons.Outlined.Close,"Dismiss",Modifier.size(15.dp)) }
-                Row(Modifier.weight(1f).fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(24.dp)) {
-                    Column(Modifier.weight(1f).fillMaxHeight()) {
                         if(apps.isEmpty()) Box(Modifier.weight(1f).fillMaxWidth(),contentAlignment=Alignment.Center) { Text(if(query.isNotEmpty()) "No matching apps" else if(page=="Updates") "You're up to date" else "Copy APKs into your Mac's library folder.",color=Muted,fontSize=15.sp) }
                         else LazyVerticalGrid(columns=GridCells.Fixed(3),modifier=Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(12.dp),horizontalArrangement=Arrangement.spacedBy(12.dp),contentPadding=PaddingValues(3.dp)) {
                             itemsIndexed(apps,key={_,a->a.packageName}) { index,a -> AppCard(a,model,if(index==0)Modifier.focusRequester(first) else Modifier,onFocus={selected=a.packageName},onClick={selected=a.packageName;runCatching{actionFocus.requestFocus()}}) }
@@ -98,15 +98,15 @@ import com.sibi.store.core.*
     val r=model.release(app) ?: app.versions.first(); val current=state.installed[app.packageName];val download=state.downloads[r.sha256]; val busy=download?.state in listOf("downloading","queued");val status=model.status(app)
     Column(modifier.clip(RoundedCornerShape(13.dp)).background(Panel).border(1.dp,Border,RoundedCornerShape(13.dp)).padding(20.dp).verticalScroll(rememberScrollState())) {
         Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(16.dp)) { AppIcon(app,65.dp); Column { Text(app.title,fontSize=19.sp,fontWeight=FontWeight.SemiBold,maxLines=2); Text("Android app",color=Muted,fontSize=12.sp,modifier=Modifier.padding(top=6.dp)) } }
-        Spacer(Modifier.height(20.dp)); InfoRow("Installed",current?.versionName ?: "Not installed");Divider(color=Border);InfoRow("Available",r.versionName)
-        Text("${bytesLabel(r.size)}  ·  Android API ${r.minSdk}+",color=Muted,fontSize=12.sp,modifier=Modifier.padding(top=10.dp,bottom=18.dp))
+        Spacer(Modifier.height(12.dp)); InfoRow("Installed",current?.versionName ?: "Not installed");Divider(color=Border);InfoRow("Available",r.versionName)
+        Text("${bytesLabel(r.size)}  ·  Android API ${r.minSdk}+",color=Muted,fontSize=12.sp,modifier=Modifier.padding(top=8.dp,bottom=14.dp))
         val ready=download?.state=="ready" && status in listOf(Availability.INSTALL,Availability.UPDATE)
         TvControl(onClick={if(busy)model.pause(r.sha256) else action(app)},modifier=Modifier.fillMaxWidth().height(42.dp).focusRequester(actionFocus),gold=true,enabled=status !in listOf(Availability.INCOMPATIBLE,Availability.SIGNATURE_MISMATCH) && (state.connected || ready || status in listOf(Availability.CURRENT,Availability.NEWER))) {
             Spacer(Modifier.weight(1f)); Icon(if(busy)Icons.Outlined.Pause else Icons.Outlined.Download,null,Modifier.size(20.dp)); Spacer(Modifier.width(9.dp)); Text(when{busy->"Pause";ready->"Install";download?.state in listOf("paused","failed")->"Resume";else->statusLabel(status)},fontSize=16.sp,fontWeight=FontWeight.Medium);Spacer(Modifier.weight(1f))
         }
         if(download!=null && (busy || download.state in listOf("paused","failed"))) { LinearProgressIndicator(progress=if(download.total>0)download.bytes.toFloat()/download.total else 0f,modifier=Modifier.fillMaxWidth().padding(top=15.dp),color=Gold,trackColor=Border);Text(download.error ?: "${bytesLabel(download.bytes)} of ${bytesLabel(download.total)}",color=Muted,fontSize=11.sp,modifier=Modifier.padding(top=8.dp)) }
-        Spacer(Modifier.height(22.dp)); Text("What's new",fontSize=16.sp,fontWeight=FontWeight.Medium);Text("No release notes included with this APK.",color=Muted,fontSize=12.sp,lineHeight=19.sp,modifier=Modifier.padding(top=9.dp,bottom=18.dp))
+        Spacer(Modifier.height(22.dp)); Text("What's new",fontSize=16.sp,fontWeight=FontWeight.Medium);Text("No release notes included with this APK.",color=Muted,fontSize=12.sp,lineHeight=19.sp,modifier=Modifier.padding(top=9.dp,bottom=4.dp))
         Divider(color=Border);Row(Modifier.padding(top=14.dp),verticalAlignment=Alignment.CenterVertically){Icon(Icons.Outlined.Computer,null,tint=Muted,modifier=Modifier.size(22.dp));Text("From your Mac",fontSize=12.sp,color=Muted,modifier=Modifier.padding(start=10.dp))}
     }
 }
-@Composable private fun InfoRow(label:String,value:String) {Row(Modifier.fillMaxWidth().padding(vertical=10.dp),horizontalArrangement=Arrangement.SpaceBetween){Text(label,color=Muted,fontSize=13.sp);Text(value,fontSize=13.sp)}}
+@Composable private fun InfoRow(label:String,value:String) {Row(Modifier.fillMaxWidth().padding(vertical=8.dp),horizontalArrangement=Arrangement.SpaceBetween){Text(label,color=Muted,fontSize=13.sp);Text(value,fontSize=13.sp)}}
