@@ -1,0 +1,12 @@
+plugins { id 'com.android.application' }
+android {
+    namespace 'com.sibi.store.fixture'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'com.sibi.store.fixture'
+        minSdk 26
+        targetSdk 35
+        versionCode Integer.parseInt(project.findProperty('fixtureVersionCode') ?: '1')
+        versionName "1.${project.findProperty('fixtureVersionCode') ?: '1'}.0"
+    }
+}
