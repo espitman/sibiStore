@@ -13,12 +13,13 @@
 - TV: fixture version code 1 → 2 through Sibi Store's download and Android's Update confirmation; PackageManager reported version code 2 afterward.
 - Both clients return to the library and show installation success and the Open action.
 - Signed phone and TV APK builds passed, including v2/v3 signature verification. Keys are stored privately outside the repository.
+- Production Android transfer code exercised against a real local HTTP socket: interrupted response preserves partial bytes, pause preserves bytes, resume sends the exact Range and If-Range headers, HTTP 200 safely restarts, invalid ranges cannot publish a file, and SHA-256 failure discards corrupted content. Five transfer tests passed alongside the version tests and phone lint.
 
 ## Still required before calling the entire implementation complete
 
 - Final screenshot comparison against all three approved references after visual fixes, including phone details/updates and TV D-pad focus/scrolling.
 - Signed Android release launch verification.
-- Android resume/interruption behavior beyond the server byte-range unit test.
+- Device-level WorkManager pause/resume lifecycle check (the shared production transfer path is socket-tested).
 - Physical-device LAN mDNS discovery (manual connection and the Mac announcement are verified, not a substitute for this check).
 
 Test APKs, screenshots, isolated AVDs and runtime databases are under ignored `test-results` directories. No private APK or signing key is committed. Existing emulators used by other projects are not part of this test environment.

@@ -13,14 +13,10 @@ import androidx.work.workDataOf
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.ensureActive
 import okhttp3.OkHttpClient
-import okhttp3.Request
 import java.io.File
-import java.io.FileOutputStream
 import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
-import kotlin.coroutines.coroutineContext
 
 fun sha256(file: File): String {
     val digest = MessageDigest.getInstance("SHA-256")
@@ -39,33 +35,10 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
         try {
             if (final.exists() && final.length() == expected && sha256(final) == hash) return@withContext Result.success(workDataOf("hash" to hash))
             setForeground(notification(title))
-            if (partial.length() > expected) partial.delete()
-            var offset = partial.length()
-            if (offset < expected) {
-                val client = OkHttpClient.Builder().connectTimeout(10,TimeUnit.SECONDS).readTimeout(30,TimeUnit.SECONDS).build()
-                val request = Request.Builder().url(url).header("X-Device-Name",Build.MODEL)
-                if (offset > 0) request.header("Range","bytes=$offset-").header("If-Range","\"$hash\"")
-                client.newCall(request.build()).execute().use { response ->
-                    require(response.isSuccessful) { "Server returned HTTP ${response.code}" }
-                    if (response.code == 206) {
-                        require(response.header("Content-Range") == "bytes $offset-${expected-1}/$expected") { "Invalid resumed download range" }
-                    } else offset = 0
-                    val body = response.body ?: error("Empty response")
-                    FileOutputStream(partial,offset > 0).use { output -> body.byteStream().use { input ->
-                        val buffer = ByteArray(65536); var done = offset; var last = 0L
-                        while(true) {
-                            coroutineContext.ensureActive()
-                            val n = input.read(buffer); if(n < 0) break
-                            done += n; require(done <= expected) { "Download is larger than expected" }; output.write(buffer,0,n)
-                            if (System.currentTimeMillis()-last > 250) { setProgress(workDataOf("bytes" to done,"total" to expected)); last=System.currentTimeMillis() }
-                        }
-                    } }
-                }
+            val client = OkHttpClient.Builder().connectTimeout(10,TimeUnit.SECONDS).readTimeout(30,TimeUnit.SECONDS).build()
+            transfer(client,url,Build.MODEL,hash,expected,partial,final) { done ->
+                setProgress(workDataOf("bytes" to done,"total" to expected))
             }
-            require(partial.length() == expected) { "Download interrupted. Tap Resume to continue." }
-            if (sha256(partial) != hash) { partial.delete(); error("File integrity check failed. Download again.") }
-            require(partial.renameTo(final)) { "Could not save downloaded APK" }
-            setProgress(workDataOf("bytes" to expected,"total" to expected))
             Result.success(workDataOf("hash" to hash))
         } catch(e: CancellationException) { throw e }
         catch(e: Exception) { Result.failure(workDataOf("error" to (e.message ?: "Download failed"))) }
