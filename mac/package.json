@@ -1,0 +1,50 @@
+{
+  "name": "sibi-store-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Your personal Android library, at home on your Mac",
+  "author": "Sibi",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "concurrently -k \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173 && electron . --dev\"",
+    "build": "tsc --noEmit && vite build",
+    "start": "electron .",
+    "test": "node --test test/*.test.cjs",
+    "test:ui": "node test/visual.cjs",
+    "package": "npm run build && electron-builder --mac dir"
+  },
+  "dependencies": {
+    "bonjour-service": "1.4.4",
+    "chokidar": "4.0.3",
+    "fastify": "^5.6.0",
+    "lucide-react": "^0.468.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "sql.js": "^1.13.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.7.0",
+    "concurrently": "^9.2.0",
+    "electron": "44.2.0",
+    "electron-builder": "^26.0.12",
+    "playwright": "^1.55.0",
+    "typescript": "^5.9.0",
+    "vite": "^6.4.0",
+    "wait-on": "^8.0.0"
+  },
+  "build": {
+    "appId": "com.sibi.store.server",
+    "productName": "Sibi Store",
+    "directories": { "output": "release" },
+    "files": ["dist/**/*", "electron/**/*", "server/**/*", "package.json"],
+    "mac": {
+      "category": "public.app-category.utilities",
+      "extendInfo": {
+        "NSLocalNetworkUsageDescription": "Sibi Store shares your APK library with your phone and TV on your home network.",
+        "NSBonjourServices": ["_sibistore._tcp"]
+      }
+    }
+  }
+}
