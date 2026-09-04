@@ -10,11 +10,13 @@ function parseBadging(text) {
   if (!pkg) throw new Error('APK manifest could not be read');
   if (/^package:.*\bsplit='/m.test(text)) throw new Error('Split APK: add a standalone universal APK instead');
   const abis = text.match(/^native-code: (.+)$/m)?.[1].match(/'([^']+)'/g)?.map(s => s.slice(1, -1)) || [];
-  const minSdk = Number(text.match(/^sdkVersion:'(\d+)'/m)?.[1] || 1);
-  return { packageName: pkg[1], versionCode: pkg[2], versionName: pkg[3],
-    title: text.match(/^application-label(?:-en)?:'([^']*)'/m)?.[1] || pkg[1],
+  const minSdk = Number(text.match(/^(?:minSdkVersion|sdkVersion):'(\d+)'/m)?.[1] || 1);
+  const major = text.match(/^package:.*\bversionCodeMajor='(\d+)'/m)?.[1] || '0';
+  const versionCode = ((BigInt(major) << 32n) | BigInt(pkg[2])).toString();
+  return { packageName: pkg[1], versionCode, versionName: pkg[3],
+    title: text.match(/^application-label-en:'([^']*)'/m)?.[1] || text.match(/^application-label:'([^']*)'/m)?.[1] || text.match(/^application: label='([^']*)'/m)?.[1] || pkg[1],
     minSdk, abis, tv: /^leanback-launchable-activity:/m.test(text),
-    iconPath: text.match(/^application-icon-\d+:'([^']+\.(?:png|webp|jpg))'/m)?.[1] };
+    iconPath: [...text.matchAll(/^application-icon-(\d+):'([^']+\.(?:png|webp|jpg))'/gm)].sort((a,b) => Number(b[1])-Number(a[1]))[0]?.[2] || text.match(/^application:.*\bicon='([^']+\.(?:png|webp|jpg))'/m)?.[1] };
 }
 async function tools() {
   const sdk = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT || path.join(os.homedir(), 'Library/Android/sdk');

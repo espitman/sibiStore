@@ -41,6 +41,7 @@
     "files": ["dist/**/*", "electron/**/*", "server/**/*", "package.json"],
     "mac": {
       "identity": "-",
+      "icon": "assets/sibi.icns",
       "category": "public.app-category.utilities",
       "extendInfo": {
         "NSLocalNetworkUsageDescription": "Sibi Store shares your APK library with your phone and TV on your home network.",

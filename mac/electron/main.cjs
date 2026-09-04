@@ -7,6 +7,8 @@ const { createServer } = require('../server/http.cjs');
 let win, library, http, tray, config, quitting = false, serverError = null;
 const demo = process.argv.includes('--design-preview');
 const dataDir = process.env.SIBI_DATA_DIR || (demo ? path.join(app.getPath('temp'), 'sibi-store-design-preview') : app.getPath('userData'));
+require('node:fs').mkdirSync(dataDir, { recursive: true });
+app.setPath('userData', dataDir);
 const configFile = path.join(dataDir, 'settings.json');
 const snapshot = () => ({ ...library.snapshot(), serverId: config.serverId, running: !!http, port: http?.port || config.port,
   addresses: http?.addresses() || [], transfers: http?.transfers || [], serverError, discoveryError: http?.discoveryError(),

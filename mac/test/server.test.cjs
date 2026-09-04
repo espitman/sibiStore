@@ -25,6 +25,13 @@ test('range parsing rejects invalid/multiple ranges', () => {
   assert.deepEqual(parseRange('bytes=-3',10),{ start:7,end:9 });
   assert.equal(parseRange('bytes=10-',10),null); assert.equal(parseRange('bytes=0-1,3-4',10),null);
 });
+test('current aapt2 labels, minimum SDK, major version and highest density icon', () => {
+  const m = parseBadging("package: name='test.app' versionCode='2' versionName='2' versionCodeMajor='3'\nminSdkVersion:'35'\napplication: label='Test App' icon=''\napplication-icon-160:'res/low.png'\napplication-icon-640:'res/high.png'\n");
+  assert.equal(m.title, 'Test App');
+  assert.equal(m.minSdk, 35);
+  assert.equal(m.versionCode, '12884901890');
+  assert.equal(m.iconPath, 'res/high.png');
+});
 test('library persists immutable verified files, rejects conflicts, serves resumable bytes and ETags', async t => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(),'sibi-test-')); const folder = path.join(root,'input');
   await fs.mkdir(folder); await fs.writeFile(path.join(folder,'one.apk'),'0123456789');
