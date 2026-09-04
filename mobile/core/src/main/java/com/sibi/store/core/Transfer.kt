@@ -55,6 +55,7 @@ suspend fun transfer(
         partial.delete()
         error("File integrity check failed. Download again.")
     }
+    coroutineContext.ensureActive()
     require(partial.renameTo(final)) { "Could not save downloaded APK" }
     progress(expected)
 }

@@ -38,7 +38,7 @@ class StoreModel(application: Application) : AndroidViewModel(application) {
     private val workLive = work.getWorkInfosByTagLiveData("sibi-download")
     private val observer = Observer<List<WorkInfo>> { infos ->
         val downloads = infos.orEmpty().groupBy { it.tags.firstOrNull { tag -> tag.startsWith("hash:") }?.removePrefix("hash:") ?: "" }.mapNotNull { (hash, tasks) ->
-            if(hash.isEmpty()) return@mapNotNull null
+            if(hash.isEmpty() || hash in prefs.getStringSet("cancelledDownloads",emptySet())!!) return@mapNotNull null
             val active = tasks.firstOrNull { !it.state.isFinished } ?: tasks.firstOrNull { it.state == WorkInfo.State.SUCCEEDED } ?: tasks.first()
             val release = _state.value.apps.flatMap { it.versions }.find { it.sha256 == hash }
             val file = downloadFile(context,hash)
@@ -109,6 +109,8 @@ class StoreModel(application: Application) : AndroidViewModel(application) {
     fun status(app: StoreApp) = availability(release(app),_state.value.installed[app.packageName])
     fun download(release: Release) {
         val host = _state.value.host ?: return
+        val cancelled = prefs.getStringSet("cancelledDownloads",emptySet())!!.toMutableSet().apply { remove(release.sha256) }
+        prefs.edit().putStringSet("cancelledDownloads",cancelled).apply()
         val pending=prefs.getStringSet("pendingInstalls",emptySet())!!.toMutableSet().apply { add(release.sha256) }
         prefs.edit().putStringSet("pendingInstalls",pending).apply()
         require(release.downloadUrl.matches(Regex("/artifacts/[a-f0-9]{64}\\.apk")))
@@ -127,11 +129,13 @@ class StoreModel(application: Application) : AndroidViewModel(application) {
     }
     fun pause(hash: String) { work.cancelUniqueWork("download:$hash") }
     fun cancel(hash: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            work.cancelUniqueWork("download:$hash").result.get()
-            // Keep partial bytes until the worker has stopped; Cancel is a paused, resumable job.
-            _state.update { it.copy(downloads=it.downloads - hash) }
-        }
+        // Remove automatic-install intent before cancellation can race with completion.
+        val pending = prefs.getStringSet("pendingInstalls",emptySet())!!.toMutableSet().apply { remove(hash) }
+        val cancelled = prefs.getStringSet("cancelledDownloads",emptySet())!!.toMutableSet().apply { add(hash) }
+        prefs.edit().putStringSet("pendingInstalls",pending).putStringSet("cancelledDownloads",cancelled).apply()
+        work.cancelUniqueWork("download:$hash")
+        _state.update { it.copy(downloads=it.downloads - hash,message="Download cancelled") }
+        // Retain private partial bytes for an explicit future retry; never install after Cancel.
     }
     override fun onCleared() { discovery.stop(); workLive.removeObserver(observer) }
 }

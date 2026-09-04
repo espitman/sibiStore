@@ -17,6 +17,7 @@
 - TV inspector alignment and spacing were checked in a fresh emulator screenshot after a full rebuild. The entire default details panel, including From your Mac, is visible. D-pad OK moved focus from the app card to its install button, confirmed through the actual accessibility hierarchy. Shared tests and TV lint passed.
 - Rebuilt and installed both signed release APKs on isolated phone/TV emulators. Both launched and connected to the real Mac catalog. PackageManager flags confirmed that neither installed build is debuggable.
 - Signed phone release, real WorkManager lifecycle: downloaded through the loopback QA throttle, pressed Pause, force-stopped and relaunched Sibi Store, observed Paused with retained bytes, then pressed Resume. The proxy recorded `Range=bytes=673184-` and HTTP 206. The remaining 23,799,660 bytes completed, integrity verification passed and Android's unknown-source permission screen opened. No private application was installed during this test. The normal server address and full network speed were restored afterward.
+- Signed phone release cancellation: while fixture version 3 was downloading, the Updates screen displayed percentage, progress, Pause and Cancel controls. Cancel stopped the request; after force-stop/relaunch, the action was Update rather than Resume, no download restarted and PackageManager still reported installed fixture version 2. Explicitly choosing Update again resumed from byte 6144 (HTTP 206), completed verification and opened the system permission screen. The QA proxy was stopped and the client restored to the normal server afterward.
 
 ## Still required before calling the entire implementation complete
 
@@ -39,3 +40,5 @@ If the local JDK cannot open sockets (`Can't assign requested address`), run the
 ## Repeating the WorkManager lifecycle test
 
 Start the normal Mac test library on port 8743, then run `bash mac/scripts/slow-network.sh` in a separate terminal. The helper binds only to loopback port 8744 and is never advertised. Connect the emulator to `10.0.2.2:8744`, download a sufficiently large APK, pause it, force-stop/relaunch the client and resume. The helper logs the real Range header and response status. Send SIGUSR1 to the exact PID printed by the helper to remove throttling and finish. Restore the client address to port 8743 and stop the helper when done. Do not run this helper as a public-facing proxy.
+
+For small fixture APKs, prefix the helper command with `SIBI_QA_CHUNK_BYTES=64` to make the progress controls easy to test before download completion.

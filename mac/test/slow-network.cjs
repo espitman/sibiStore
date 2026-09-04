@@ -1,6 +1,8 @@
 // Loopback-only QA proxy. Never advertised; forwards only the local store's read endpoints.
 const http = require('node:http');
 let delayMs = 250;
+const chunkBytes = Number(process.env.SIBI_QA_CHUNK_BYTES || 16384);
+if (!Number.isInteger(chunkBytes) || chunkBytes < 32 || chunkBytes > 1048576) throw Error('SIBI_QA_CHUNK_BYTES must be 32..1048576');
 process.on('SIGUSR1', () => { delayMs = 0; console.log('QA throttle disabled'); });
 const server = http.createServer((req, res) => {
   if (req.method !== 'GET' || !/^\/(api\/v1\/(info|catalog)|artifacts\/[a-f0-9]{64}\.apk)$/.test(req.url)) {
@@ -14,9 +16,9 @@ const server = http.createServer((req, res) => {
     console.log(`GET ${artifact?'artifact':req.url} Range=${req.headers.range || 'full'} status=${incoming.statusCode}`);
     try {
       for await (const chunk of incoming) {
-        for (let offset = 0; offset < chunk.length; offset += 16384) {
+        for (let offset = 0; offset < chunk.length; offset += chunkBytes) {
           if (res.destroyed) return;
-          const part = chunk.subarray(offset,offset+16384);
+          const part = chunk.subarray(offset,offset+chunkBytes);
           res.write(part); bytes += part.length;
           if (artifact && delayMs) await new Promise(resolve => setTimeout(resolve,delayMs));
         }

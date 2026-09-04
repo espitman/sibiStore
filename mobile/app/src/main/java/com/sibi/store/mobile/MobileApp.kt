@@ -25,6 +25,7 @@ import com.sibi.store.core.*
     var tab by remember { mutableStateOf("Library") }; var selected by remember { mutableStateOf<String?>(null) }
     val app = state.apps.find { it.packageName == selected }
     val updates = state.apps.filter { model.status(it) == Availability.UPDATE }
+    val transfers = state.apps.filter { model.status(it) == Availability.INSTALL && state.downloads[model.release(it)?.sha256] != null }
     BackHandler(selected != null || tab != "Library") { if(selected != null) selected=null else tab="Library" }
     Scaffold(containerColor=DeepBlack,bottomBar={
         Column { Divider(color=Border); NavigationBar(containerColor=Panel,tonalElevation=0.dp,modifier=Modifier.height(76.dp)) {
@@ -38,7 +39,7 @@ import com.sibi.store.core.*
             when {
                 app != null -> AppDetails(app,model,state,action){selected=null}
                 tab == "Settings" -> Column(Modifier.verticalScroll(rememberScrollState()).padding(22.dp)) { Text("Settings",fontSize=28.sp,fontWeight=FontWeight.Bold); Spacer(Modifier.height(25.dp)); ConnectionPanel(model,state); Spacer(Modifier.height(30.dp)); Text("Sibi Store 0.1.0",color=Muted,fontSize=12.sp) }
-                tab == "Updates" -> UpdatesScreen(updates,model,state,action)
+                tab == "Updates" -> UpdatesScreen((updates + transfers).distinctBy { it.packageName },model,state,action)
                 else -> LibraryScreen(model,state,updates.size,action,{selected=it.packageName},{tab="Updates"},{tab="Settings"})
             }
         }
@@ -95,14 +96,38 @@ import com.sibi.store.core.*
 }
 @Composable private fun DetailRow(label:String,value:String) { Divider(color=Border); Row(Modifier.fillMaxWidth().padding(vertical=15.dp),horizontalArrangement=Arrangement.SpaceBetween) { Text(label,color=Muted,fontSize=14.sp); Text(value,fontSize=14.sp) } }
 @Composable private fun DownloadProgress(download:Download,model:StoreModel) {
-    Row(verticalAlignment=Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text(when(download.state){"downloading"->"Downloading…";"queued"->"Waiting for network…";"paused"->"Paused";else->download.error ?: "Download failed"},color=Gold,fontSize=12.sp); LinearProgressIndicator(progress=if(download.total>0)download.bytes.toFloat()/download.total else 0f,modifier=Modifier.fillMaxWidth().padding(top=10.dp,bottom=8.dp).height(4.dp),color=Gold,trackColor=Border); Text("${bytesLabel(download.bytes)} of ${bytesLabel(download.total)}",color=Muted,fontSize=12.sp) }; if(download.state in listOf("downloading","queued")) IconButton(onClick={model.pause(download.hash)}) { Icon(Icons.Outlined.PauseCircle,"Pause",tint=Muted) } }
+    Row(verticalAlignment=Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment=Alignment.CenterVertically) {
+                Text(when(download.state){"downloading"->"Downloading…";"queued"->"Queued";"paused"->"Paused";else->download.error ?: "Download failed"},modifier=Modifier.weight(1f),color=Gold,fontSize=12.sp)
+                Text("${if(download.total>0) download.bytes*100/download.total else 0}%",color=Gold,fontSize=12.sp)
+            }
+            LinearProgressIndicator(progress=if(download.total>0)download.bytes.toFloat()/download.total else 0f,modifier=Modifier.fillMaxWidth().padding(top=10.dp,bottom=8.dp).height(4.dp),color=Gold,trackColor=Border)
+            Text("${bytesLabel(download.bytes)} of ${bytesLabel(download.total)}",color=Muted,fontSize=12.sp)
+        }
+        Column {
+            if(download.state in listOf("downloading","queued")) IconButton(onClick={model.pause(download.hash)}) { Icon(Icons.Outlined.PauseCircle,"Pause",tint=Muted) }
+            IconButton(onClick={model.cancel(download.hash)}) { Icon(Icons.Outlined.Cancel,"Cancel download",tint=Muted) }
+        }
+    }
 }
 @Composable private fun UpdatesScreen(apps:List<StoreApp>,model:StoreModel,state:StoreState,action:(StoreApp)->Unit) {
     Column(Modifier.fillMaxSize().padding(21.dp)) { Text("Updates",fontSize=28.sp,fontWeight=FontWeight.Bold,modifier=Modifier.padding(top=11.dp)); Text("${apps.size} new ${if(apps.size==1)"version" else "versions"} in your library",fontSize=14.sp,color=Muted,modifier=Modifier.padding(top=8.dp,bottom=25.dp))
         LazyColumn(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(16.dp)) { items(apps,key={it.packageName}) { app ->
             val release=model.release(app)!!; val download=state.downloads[release.sha256]
             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Panel).border(1.dp,Border,RoundedCornerShape(14.dp)).padding(17.dp),horizontalArrangement=Arrangement.spacedBy(16.dp),verticalAlignment=Alignment.CenterVertically) {
-                AppIcon(app,62.dp); Column(Modifier.weight(1f)) { Text(app.title,fontWeight=FontWeight.SemiBold,fontSize=17.sp); Spacer(Modifier.height(10.dp)); if(download?.state in listOf("downloading","queued")) DownloadProgress(download!!,model) else { Text("Installed: ${state.installed[app.packageName]?.versionName}",color=Muted,fontSize=12.sp); Text("Available: ${release.versionName}",color=Muted,fontSize=12.sp,modifier=Modifier.padding(top=6.dp)); download?.error?.let { Text(it,color=Gold,fontSize=11.sp) } } }; if(download?.state !in listOf("downloading","queued")) ActionButton(app,model,state,action)
+                AppIcon(app,62.dp)
+                Column(Modifier.weight(1f)) {
+                    Text(app.title,fontWeight=FontWeight.SemiBold,fontSize=17.sp)
+                    Spacer(Modifier.height(10.dp))
+                    if(download?.state in listOf("downloading","queued")) DownloadProgress(download!!,model)
+                    else {
+                        Text(state.installed[app.packageName]?.versionName?.let { "Installed: $it" } ?: "Not installed",color=Muted,fontSize=12.sp)
+                        Text("Available: ${release.versionName}",color=Muted,fontSize=12.sp,modifier=Modifier.padding(top=6.dp))
+                        download?.error?.let { Text(it,color=Gold,fontSize=11.sp) }
+                    }
+                }
+                if(download?.state !in listOf("downloading","queued")) ActionButton(app,model,state,action)
             }
         }; if(apps.isEmpty()) item { Column(Modifier.fillMaxWidth().padding(top=100.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(15.dp)) { Icon(Icons.Outlined.CheckCircle,null,tint=Gold,modifier=Modifier.size(42.dp)); Text(if(state.connected)"You're up to date" else "Connect to check for updates",color=Muted) } } }
         Row(Modifier.fillMaxWidth().padding(vertical=16.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.Center) { Icon(Icons.Outlined.Info,null,tint=Muted,modifier=Modifier.size(17.dp)); Text("Confirm installation after downloading",color=Muted,fontSize=12.sp,modifier=Modifier.padding(start=10.dp)) }

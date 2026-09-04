@@ -22,6 +22,8 @@ For isolated, headless QA emulators on Apple Silicon, install the Android 36 Goo
 
 Connect to the same home LAN as the Mac. Select the discovered Mac, or enter the address shown in the Mac server's Settings. Open Library, then tap Install or Update. Downloads continue in the background; ready files are verified before the system installation confirmation appears. Android asks once to allow installation from Sibi Store. This app does not bypass that permission or silently install packages.
 
+The Updates page also shows downloads for first-time installs. Pause keeps a visible resumable download. Cancel stops the transfer, removes it from the active-download UI and clears its automatic-install request, including after restarting the app. Private partial bytes may be reused only when you explicitly choose Install/Update again.
+
 Version names are display-only. Comparisons use Android's 64-bit version code after checking minimum SDK, CPU ABI and signing certificate. The current implementation accepts standalone APKs, not split APK bundles or signing-key rotation.
 
 ## QA helpers
