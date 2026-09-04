@@ -6,6 +6,13 @@ const os = require('node:os');
 const { Library, hashFile, compareCodes } = require('../server/library.cjs');
 const { parseBadging } = require('../server/apk.cjs');
 const { createServer, parseRange } = require('../server/http.cjs');
+test('real APK passes the official manifest and signature tools', { skip: !process.env.SIBI_TEST_APK }, async () => {
+  const { inspectApk } = require('../server/apk.cjs');
+  const meta = await inspectApk(process.env.SIBI_TEST_APK);
+  assert.ok(meta.packageName); assert.ok(BigInt(meta.versionCode) >= 0n);
+  assert.ok(meta.certificates.every(c => /^[0-9a-f]{64}$/.test(c)));
+  console.log(`Verified real APK: ${meta.title} ${meta.versionName} (${meta.versionCode})`);
+});
 
 test('Android manifest parsing and 64-bit version ordering', () => {
   const m = parseBadging("package: name='com.sibi.player' versionCode='42' versionName='2.4.0'\nsdkVersion:'26'\napplication-label:'Sibi Player'\nnative-code: 'arm64-v8a' 'armeabi-v7a'\nleanback-launchable-activity: name='Main'\n");

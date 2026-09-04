@@ -7,3 +7,8 @@
 .DS_Store
 **/test-results/
 **/*.log
+**/*.jks
+**/*.keystore
+**/*.apk
+**/*.aab
+**/.env
