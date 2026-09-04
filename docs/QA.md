@@ -15,12 +15,12 @@
 - Signed phone and TV APK builds passed, including v2/v3 signature verification. Keys are stored privately outside the repository.
 - Production Android transfer code exercised against a real local HTTP socket: interrupted response preserves partial bytes, pause preserves bytes, resume sends the exact Range and If-Range headers, HTTP 200 safely restarts, invalid ranges cannot publish a file, and SHA-256 failure discards corrupted content. Five transfer tests passed alongside the version tests and phone lint.
 - TV inspector alignment and spacing were checked in a fresh emulator screenshot after a full rebuild. The entire default details panel, including From your Mac, is visible. D-pad OK moved focus from the app card to its install button, confirmed through the actual accessibility hierarchy. Shared tests and TV lint passed.
+- Rebuilt and installed both signed release APKs on isolated phone/TV emulators. Both launched and connected to the real Mac catalog. PackageManager flags confirmed that neither installed build is debuggable.
+- Signed phone release, real WorkManager lifecycle: downloaded through the loopback QA throttle, pressed Pause, force-stopped and relaunched Sibi Store, observed Paused with retained bytes, then pressed Resume. The proxy recorded `Range=bytes=673184-` and HTTP 206. The remaining 23,799,660 bytes completed, integrity verification passed and Android's unknown-source permission screen opened. No private application was installed during this test. The normal server address and full network speed were restored afterward.
 
 ## Still required before calling the entire implementation complete
 
 - Final screenshot comparison against all three approved references after visual fixes, including phone details/updates and TV D-pad focus/scrolling.
-- Signed Android release launch verification.
-- Device-level WorkManager pause/resume lifecycle check (the shared production transfer path is socket-tested).
 - Physical-device LAN mDNS discovery (manual connection and the Mac announcement are verified, not a substitute for this check).
 
 Test APKs, screenshots, isolated AVDs and runtime databases are under ignored `test-results` directories. No private APK or signing key is committed. Existing emulators used by other projects are not part of this test environment.
@@ -35,3 +35,7 @@ Test APKs, screenshots, isolated AVDs and runtime databases are under ignored `t
 6. Record the OS versions, whether guest/client isolation was disabled, and the observed discovery/reconnect results. A manual-address success alone does not pass multicast discovery.
 
 If the local JDK cannot open sockets (`Can't assign requested address`), run the same Bash command with `JAVA_TOOL_OPTIONS=-Djava.net.preferIPv4Stack=true`. This affects the build/test JVM, not Android's networking behavior. Kotlin compilation uses the Gradle process and full module metadata generation to avoid stale metadata after interrupted compiler-daemon runs.
+
+## Repeating the WorkManager lifecycle test
+
+Start the normal Mac test library on port 8743, then run `bash mac/scripts/slow-network.sh` in a separate terminal. The helper binds only to loopback port 8744 and is never advertised. Connect the emulator to `10.0.2.2:8744`, download a sufficiently large APK, pause it, force-stop/relaunch the client and resume. The helper logs the real Range header and response status. Send SIGUSR1 to the exact PID printed by the helper to remove throttling and finish. Restore the client address to port 8743 and stop the helper when done. Do not run this helper as a public-facing proxy.
