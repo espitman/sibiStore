@@ -28,7 +28,7 @@ function Desktop() {
   return <div className="desktop">
     <aside className="sidebar">
       <div className="traffic-space"/>
-      <div className="brand">sibi<span>store</span><ShoppingBag size={32}/></div>
+      <div className="brand">sibi<span>store</span><svg width="32" height="32" viewBox="0 0 24 28" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="8" width="18" height="18" rx="2"/><path d="M8 11V5a4 4 0 0 1 8 0v6M8 17l3 3 5-5"/></svg></div>
       <div className="server-label">SERVER{state?.preview ? ' · DESIGN PREVIEW' : ''}</div>
       <nav>{[{ title: 'Library', Icon: LayoutGrid }, { title: 'Transfers', Icon: Download }, { title: 'Settings', Icon: Settings }].map(({title,Icon}) => <button key={title} className={`nav-item ${page === title ? 'active' : ''}`} onClick={() => setPage(title)}><Icon size={23}/>{title}{title === 'Transfers' && active.length > 0 && <span className="badge">{active.length}</span>}</button>)}</nav>
       <div className="sidebar-status"><div><i className={`dot ${state?.running ? '' : 'off'}`}/>{state?.running ? 'Server running' : 'Server stopped'}</div><div className="muted"><House size={15}/>Home network</div></div>

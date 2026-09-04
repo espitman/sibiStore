@@ -62,7 +62,7 @@ import com.sibi.store.core.*
                 Row(Modifier.weight(1f).fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(24.dp)) {
                     Column(Modifier.weight(1f).fillMaxHeight()) {
                 Row(Modifier.fillMaxWidth().height(44.dp),verticalAlignment=Alignment.CenterVertically) {
-                    if(updates.isNotEmpty()) TvControl(onClick={page="Updates"},compact=true) { Icon(Icons.Outlined.DownloadForOffline,null,tint=Gold,modifier=Modifier.size(17.dp)); Text("${updates.size} updates available",color=Gold,fontSize=13.sp,modifier=Modifier.padding(horizontal=9.dp)); Icon(Icons.Outlined.ChevronRight,null,tint=Muted,modifier=Modifier.size(17.dp)) }
+                    if(updates.isNotEmpty()) TvControl(onClick={page="Updates"},compact=true) { Icon(Icons.Outlined.DownloadForOffline,null,tint=Gold,modifier=Modifier.size(17.dp)); Text("${updates.size} ${if(updates.size==1) "update" else "updates"} available",color=Gold,fontSize=13.sp,modifier=Modifier.padding(horizontal=9.dp)); Icon(Icons.Outlined.ChevronRight,null,tint=Muted,modifier=Modifier.size(17.dp)) }
                     else Text(if(state.connected) "Your library is up to date" else "Mac offline · showing saved library",color=Muted,fontSize=12.sp)
                     Spacer(Modifier.weight(1f)); TvControl(onClick={model.refresh()},compact=true) { Icon(Icons.Outlined.Refresh,"Refresh",tint=Muted,modifier=Modifier.size(17.dp)) }
                 }

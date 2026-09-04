@@ -18,11 +18,13 @@
 - Rebuilt and installed both signed release APKs on isolated phone/TV emulators. Both launched and connected to the real Mac catalog. PackageManager flags confirmed that neither installed build is debuggable.
 - Signed phone release, real WorkManager lifecycle: downloaded through the loopback QA throttle, pressed Pause, force-stopped and relaunched Sibi Store, observed Paused with retained bytes, then pressed Resume. The proxy recorded `Range=bytes=673184-` and HTTP 206. The remaining 23,799,660 bytes completed, integrity verification passed and Android's unknown-source permission screen opened. No private application was installed during this test. The normal server address and full network speed were restored afterward.
 - Signed phone release cancellation: while fixture version 3 was downloading, the Updates screen displayed percentage, progress, Pause and Cancel controls. Cancel stopped the request; after force-stop/relaunch, the action was Update rather than Resume, no download restarted and PackageManager still reported installed fixture version 2. Explicitly choosing Update again resumed from byte 6144 (HTTP 206), completed verification and opened the system permission screen. The QA proxy was stopped and the client restored to the normal server afterward.
+- Completed the component/layout review of all three approved references; see [design review](DESIGN-REVIEW.md) for the compared states and explicit data differences. Mac selected-hover highlighting now has a regression test; inspector proportions and the shared checked-bag branding were corrected. The Mac UI suite, rebuild and packaged launch passed again.
 
 ## Still required before calling the entire implementation complete
 
-- Final screenshot comparison against all three approved references after visual fixes, including phone details/updates and TV D-pad focus/scrolling.
 - Physical-device LAN mDNS discovery (manual connection and the Mac announcement are verified, not a substitute for this check).
+
+The latest read-only device inventory contained only Android emulators. A real phone or TV on the home LAN is needed for this remaining check; no unrelated emulator or physical device has been taken over to work around it.
 
 Test APKs, screenshots, isolated AVDs and runtime databases are under ignored `test-results` directories. No private APK or signing key is committed. Existing emulators used by other projects are not part of this test environment.
 

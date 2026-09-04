@@ -15,6 +15,7 @@ import android.util.Base64
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -37,7 +38,7 @@ val Green = Color(0xFF16C98D)
     Row(modifier,verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(3.dp)) {
         Text("sibi",fontSize=size.sp,fontWeight=FontWeight.Bold,letterSpacing=(-1).sp)
         Text("store",fontSize=(size*0.66).sp,color=Gold,fontWeight=FontWeight.SemiBold,modifier=Modifier.align(Alignment.Bottom).padding(bottom=3.dp))
-        Icon(Icons.Outlined.ShoppingBag,null,tint=Gold,modifier=Modifier.padding(start=4.dp).size(size.dp))
+        Icon(painterResource(R.drawable.ic_brand_bag),null,tint=Gold,modifier=Modifier.padding(start=4.dp).size(size.dp))
     }
 }
 @Composable fun AppIcon(app: StoreApp, size: Dp = 52.dp) {
