@@ -6,13 +6,15 @@ The approved references remain `mac/design/reference.png`, `mobile/design/refere
 
 Verified sidebar, English wordmark with checked-bag mark, black/charcoal/gold palette, top search/rescan/open-folder controls, library folder strip, APK table, selected gold row, version-history inspector, compatibility/file details and bottom transfer/status area. The inspector width was corrected to the reference proportions. A reproduced hover regression is now covered by the Electron test: hover cannot remove the selected row's gold gradient. The rebuilt packaged app also launches.
 
+Mac icon follow-up: the active Library squares are solid gold and the primary Open folder glyph is solid black, as in the reference. Electron UI tests assert both fills alongside the existing selected-row hover check; the resulting library screenshot was reviewed.
+
 ## Phone
 
 Verified library header and connection pill, search, three filters, update notice, icon/name/version/action rows and bottom navigation. Details show the large app icon, update badge, primary action, version/size/Android panel, notes state and installed/available versions. The Updates view has app cards, real progress and percentage, Pause and Cancel controls, and the installation-confirmation hint. Cancel was tested during a real signed-client download and across process restart. The shared checked-bag mark matches the Mac and TV mark.
 
-## TV
-
 Phone navigation follow-up: the selected Library glyph is now four filled rounded squares; inactive Library uses thin outlines. Download and Settings use thin custom strokes, with regular-weight tab labels. The signed phone build passed shared tests/lint and was installed only on the isolated phone emulator. Library and Updates screenshots (`reference-nav-library.png`, `reference-nav-updates-settled.png`) were visually reviewed and tab navigation remained functional. This corrects navigation artwork, not a claim of full pixel identity.
+
+## TV
 
 The earlier component-level review missed substantial reference differences: orange-biased accents, oversized/letter-spaced typography, heavy Material glyphs, boxed inactive navigation, a gray focus overlay, misplaced Search and widely separated remote hints. That review was not sufficient evidence of visual fidelity.
 
