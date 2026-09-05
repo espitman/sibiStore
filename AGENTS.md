@@ -10,3 +10,4 @@
 - Keep the real app empty when the library is empty. Design fixtures must be explicitly isolated in preview/test mode and never advertised on LAN.
 - Verify manifest metadata, signatures, file integrity, version compatibility, resumable downloads, and Android system-install results. Do not treat build success alone as proof of end-to-end operation.
 - Keep backend API versioned at `/api/v1`; use `_sibistore._tcp` discovery and a persistent server ID.
+- For TV visual changes, compare an actual cold-launch screenshot against `tv/design/reference.png` at equal scale. TV-specific yellow/neutral-gray tokens follow that artwork; do not inherit phone typography or Material focus overlays. Run `bash tv/scripts/visual-check.sh <QA-device-serial>` on a populated QA library, and inspect its PNGs as well as the automated layout checks. Do not claim pixel identity when real catalog content differs.

@@ -12,7 +12,11 @@ Verified library header and connection pill, search, three filters, update notic
 
 ## TV
 
-Verified landscape sidebar, three-column app grid, gold remote-focus outline, update notice, right-hand inspector, primary action and remote legend. Inspector alignment/spacing was corrected so the default notes and From your Mac footer are fully visible. D-pad OK from a focused card moves focus to its action, as confirmed by the accessibility hierarchy. Native lists and inspector scrolling retain content when libraries or metadata are longer.
+The earlier component-level review missed substantial reference differences: orange-biased accents, oversized/letter-spaced typography, heavy Material glyphs, boxed inactive navigation, a gray focus overlay, misplaced Search and widely separated remote hints. That review was not sufficient evidence of visual fidelity.
+
+The correction uses TV-local neutral gray (`#B8B8B8`), yellow (`#FFD600`) and near-black gradient surfaces. It removes inherited letter spacing and focus ripple, uses thin vector UI glyphs and filled Library squares, and keeps real APK icons. At the 960 × 540 logical canvas, the sidebar is 164 dp including its divider, the inspector is 260 dp, and the grid/inspector gap is 39 dp. Search is placed at their junction; footer hints occupy three equal left-aligned columns. Heading size is 28 sp, navigation 13 sp, card names 15 sp and inspector title 19 sp. The focused card expands slightly without changing its black surface. Notes and the Mac footer remain visible with normal-length metadata.
+
+`bash tv/scripts/visual-check.sh <QA-device-serial>` captures the real signed client, checks normalized reference landmarks, status-text clipping, inspector footer visibility and D-pad OK focus transfer. It never installs a catalog APK. Review `tv/test-results/reference-aligned-library.png` and `reference-aligned-action.png` visually too: accessibility bounds alone cannot verify color or glyph appearance. The live QA library has three apps, not the mockup's eight; no fake apps or release notes are injected to manufacture a pixel comparison.
 
 ## Intentional data differences
 
