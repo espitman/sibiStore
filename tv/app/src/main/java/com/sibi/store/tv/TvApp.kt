@@ -2,6 +2,7 @@ package com.sibi.store.tv
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.*
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.*
@@ -16,7 +17,9 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.*
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
@@ -26,6 +29,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sibi.store.core.*
+import kotlinx.coroutines.launch
 
 // Reference: 1680 × 941 artwork, mapped to the TV's 960 × 540 logical canvas.
 @Composable fun TvApp(model: StoreModel, action: (StoreApp) -> Unit) {
@@ -199,8 +203,22 @@ import com.sibi.store.core.*
     val download = state.downloads[r.sha256]
     val busy = download?.state in listOf("downloading", "queued")
     val status = model.status(app)
+    val detailsScroll = rememberScrollState()
+    val scope = rememberCoroutineScope()
+    val scrollStep = with(LocalDensity.current) { 72.dp.toPx() }
+    LaunchedEffect(app.packageName) { detailsScroll.scrollTo(0) }
     Column(modifier.clip(RoundedCornerShape(11.dp)).background(TvCardBrush).border(0.8.dp, TvBorder, RoundedCornerShape(11.dp))
-        .padding(start = 21.dp, end = 21.dp, top = 19.dp, bottom = 9.dp).verticalScroll(rememberScrollState())) {
+        .padding(start = 21.dp, end = 21.dp, top = 19.dp, bottom = 9.dp)) {
+        // Keep the source footer in place; progress and long metadata scroll above it.
+        Column(Modifier.weight(1f).fillMaxWidth().onPreviewKeyEvent { event ->
+            val amount = when {
+                event.type != KeyEventType.KeyDown -> 0f
+                event.key == Key.DirectionDown && detailsScroll.canScrollForward -> scrollStep
+                event.key == Key.DirectionUp && detailsScroll.canScrollBackward -> -scrollStep
+                else -> 0f
+            }
+            if (amount != 0f) { scope.launch { detailsScroll.scrollBy(amount) }; true } else false
+        }.verticalScroll(detailsScroll)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(19.dp)) {
             TvAppIcon(app, 71.dp)
             Column { Text(app.title, fontSize = 19.sp, fontWeight = FontWeight.Medium, maxLines = 2)
@@ -225,7 +243,9 @@ import com.sibi.store.core.*
         Spacer(Modifier.height(21.dp))
         Text("What’s new", fontSize = 14.sp, fontWeight = FontWeight.Medium)
         Text("No release notes included with this APK.", color = TvMuted, fontSize = 12.5.sp, lineHeight = 22.sp, modifier = Modifier.padding(top = 8.dp).heightIn(min = 47.dp))
-        Spacer(Modifier.height(8.dp)); Divider(color = TvBorder, thickness = 0.6.dp)
+        Spacer(Modifier.height(8.dp))
+        }
+        Divider(color = TvBorder, thickness = 0.6.dp)
         Row(Modifier.padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             TvGlyph("Computer", size = 25.dp, tint = TvMuted)
             Text("From your Mac", fontSize = 12.5.sp, color = TvMuted, modifier = Modifier.padding(start = 10.dp))

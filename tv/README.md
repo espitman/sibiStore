@@ -17,3 +17,5 @@ Use the remote's arrows to navigate, OK on an app card to focus its action, and 
 For isolated QA on Apple Silicon, install the Android 36 Google TV ARM64 system image and run `bash tv/scripts/emulator.sh` separately. Use serial `emulator-5582` and server address `10.0.2.2:8743`. This does not modify existing user AVDs.
 
 To open a visible emulator window instead of headless QA, run `SIBI_EMULATOR_WINDOW=1 bash tv/scripts/emulator.sh`. The emulator must be stopped first if it is already running headlessly. Additional emulator arguments are forwarded by the script.
+
+The details footer stays fixed while overflowing metadata/progress scrolls above it. With the inspector action focused, use D-pad Down/Up to read overflowing details. For regression QA of an existing paused transfer, use `bash tv/scripts/inspector-check.sh <QA-serial> '<app title>'`; it checks footer visibility and remote scrolling without resuming or installing the app.
