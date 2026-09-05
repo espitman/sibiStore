@@ -12,6 +12,8 @@ Verified library header and connection pill, search, three filters, update notic
 
 ## TV
 
+Phone navigation follow-up: the selected Library glyph is now four filled rounded squares; inactive Library uses thin outlines. Download and Settings use thin custom strokes, with regular-weight tab labels. The signed phone build passed shared tests/lint and was installed only on the isolated phone emulator. Library and Updates screenshots (`reference-nav-library.png`, `reference-nav-updates-settled.png`) were visually reviewed and tab navigation remained functional. This corrects navigation artwork, not a claim of full pixel identity.
+
 The earlier component-level review missed substantial reference differences: orange-biased accents, oversized/letter-spaced typography, heavy Material glyphs, boxed inactive navigation, a gray focus overlay, misplaced Search and widely separated remote hints. That review was not sufficient evidence of visual fidelity.
 
 The correction uses TV-local neutral gray (`#B8B8B8`), yellow (`#FFD600`) and near-black gradient surfaces. It removes inherited letter spacing and focus ripple, uses thin vector UI glyphs and filled Library squares, and keeps real APK icons. At the 960 × 540 logical canvas, the sidebar is 164 dp including its divider, the inspector is 260 dp, and the grid/inspector gap is 39 dp. Search is placed at their junction; footer hints occupy three equal left-aligned columns. Heading size is 28 sp, navigation 13 sp, card names 15 sp and inspector title 19 sp. The focused card expands slightly without changing its black surface. Notes and the Mac footer remain visible with normal-length metadata.

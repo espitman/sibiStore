@@ -29,8 +29,8 @@ import com.sibi.store.core.*
     BackHandler(selected != null || tab != "Library") { if(selected != null) selected=null else tab="Library" }
     Scaffold(containerColor=DeepBlack,bottomBar={
         Column { Divider(color=Border); NavigationBar(containerColor=Panel,tonalElevation=0.dp,modifier=Modifier.height(76.dp)) {
-            listOf("Library" to Icons.Outlined.GridView,"Updates" to Icons.Outlined.Download,"Settings" to Icons.Outlined.Settings).forEach { (name,icon) ->
-                NavigationBarItem(selected=tab==name,onClick={tab=name;selected=null},icon={ BadgedBox(badge={if(name=="Updates" && updates.isNotEmpty()) Badge(containerColor=Gold,contentColor=DeepBlack){Text("${updates.size}")} }) { Icon(icon,name,Modifier.size(26.dp)) } },label={Text(name,fontSize=12.sp)},colors=NavigationBarItemDefaults.colors(selectedIconColor=Gold,selectedTextColor=Gold,indicatorColor=Color.Transparent,unselectedIconColor=Muted,unselectedTextColor=Muted))
+            listOf("Library", "Updates", "Settings").forEach { name ->
+                NavigationBarItem(selected=tab==name,onClick={tab=name;selected=null},icon={ BadgedBox(badge={if(name=="Updates" && updates.isNotEmpty()) Badge(containerColor=Gold,contentColor=DeepBlack){Text("${updates.size}")} }) { MobileGlyph(name, selected=tab==name) } },label={Text(name,fontSize=12.sp,fontWeight=androidx.compose.ui.text.font.FontWeight.Normal)},colors=NavigationBarItemDefaults.colors(selectedIconColor=Gold,selectedTextColor=Gold,indicatorColor=Color.Transparent,unselectedIconColor=Muted,unselectedTextColor=Muted))
             }
         } }
     }) { padding ->
