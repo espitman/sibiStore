@@ -21,13 +21,13 @@
 - Completed the component/layout review of all three approved references; see [design review](DESIGN-REVIEW.md) for the compared states and explicit data differences. Mac selected-hover highlighting now has a regression test; inspector proportions and the shared checked-bag branding were corrected. The Mac UI suite, rebuild and packaged launch passed again.
 - TV follow-up: the primary action's focused state uses the user-requested black background, yellow text/icon and larger label. The details footer is now fixed outside the scrolling content. With an existing paused transfer, D-pad Down exposed the clipped notes and D-pad Up restored the header; the footer bounds remained unchanged and the action remained Resume throughout. No catalog app was installed or resumed by that check. The Bash visual checks now inspect rendered heading/footer pixels as well as accessibility bounds.
 
-## Still required before calling the entire implementation complete
+## Release handoff and remaining device validation
 
 The TV screenshot-audit helper also has 14 passing regression tests through `tv/scripts/test.sh`: RGB/RGBA screenshots, all five PNG row filters, split image-data chunks, missing text, transparent pixels, invalid bounds and non-PNG input. Transparent light pixels no longer count as visible text. These tests verify the QA helper, not full visual fidelity; shared Android tests and TV lint passed with this change.
 
-- Physical-device LAN mDNS discovery (manual connection and the Mac announcement are verified, not a substitute for this check).
+- Physical-device LAN mDNS discovery remains unverified (manual connection and the Mac announcement are verified, not a substitute for this check). The user will perform physical-phone testing after release; it is no longer a prerequisite for handing over the local release artifacts. This is a testing handoff, not a claim that device discovery passed.
 
-A physical Xiaomi phone running Android 14 is now connected over authorized USB debugging. The user approved installing the signed phone client, but Android rejected the installation with `INSTALL_FAILED_USER_RESTRICTED` (installation canceled/restricted on the device). No client was installed by that attempt, and no device security setting was changed or bypassed. Physical-device discovery is still unverified; the next installation attempt awaits the user's device-side approval. USB connectivity alone does not prove LAN discovery.
+A physical Xiaomi phone running Android 14 was connected over authorized USB debugging. The user approved installing the signed phone client, but Android rejected the installation with `INSTALL_FAILED_USER_RESTRICTED` (installation canceled/restricted on the device). No client was installed by that attempt, and no device security setting was changed or bypassed. The user subsequently chose to test the phone themselves after release; do not retry installation without a new request. USB connectivity alone does not prove LAN discovery.
 
 Test APKs, screenshots, isolated AVDs and runtime databases are under ignored `test-results` directories. No private APK or signing key is committed. Existing emulators used by other projects are not part of this test environment.
 
