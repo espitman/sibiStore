@@ -16,7 +16,8 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -150,6 +151,7 @@ import com.sibi.store.core.*
     var focused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(if (selected) 10.dp else 7.dp)
     val brush = when {
+        gold && focused -> Brush.verticalGradient(listOf(TvBlack, TvBlack))
         gold -> Brush.verticalGradient(listOf(Color(0xFFFFD300), Color(0xFFFFC800)))
         selected -> Brush.verticalGradient(listOf(Color(0xFF171400), Color(0xFF100E00)))
         else -> Brush.verticalGradient(listOf(Color.Transparent, Color.Transparent))
@@ -159,7 +161,7 @@ import com.sibi.store.core.*
         .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, enabled = enabled, onClick = onClick)
         .padding(start = if (compact) 0.dp else if (borderless) 14.dp else 11.dp,
             end = if (compact || borderless) 0.dp else 11.dp, top = if (compact) 4.dp else 5.dp, bottom = if (compact) 4.dp else 5.dp), verticalAlignment = Alignment.CenterVertically) {
-        CompositionLocalProvider(LocalContentColor provides if (gold) TvBlack else if (selected) TvGold else TvWhite) { content() }
+        CompositionLocalProvider(LocalContentColor provides if (gold && focused) TvGold else if (gold) TvBlack else if (selected) TvGold else TvWhite) { content() }
     }
 }
 
@@ -168,7 +170,15 @@ import com.sibi.store.core.*
     val shape = RoundedCornerShape(9.dp)
     val status = model.status(app)
     Column(modifier.fillMaxWidth().height(149.dp).onFocusChanged { focused = it.isFocused; if (it.isFocused) onFocus() }
-        .graphicsLayer { scaleX = if (focused) 1.055f else 1f; scaleY = if (focused) 1.045f else 1f }
+        .layout { measurable, constraints ->
+            // Enlarge the card's layout, not a retained GPU text layer, on remote focus.
+            val width = constraints.maxWidth
+            val height = constraints.maxHeight
+            val child = measurable.measure(Constraints.fixed(
+                (width * if (focused) 1.055f else 1f).toInt(),
+                (height * if (focused) 1.045f else 1f).toInt()))
+            layout(width, height) { child.placeRelative((width - child.width) / 2, (height - child.height) / 2) }
+        }
         .clip(shape).background(TvCardBrush).border(if (focused) 1.5.dp else 0.8.dp, if (focused) TvGold else TvBorder, shape)
         .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick)
         .padding(start = 7.dp, end = 7.dp, top = 16.dp, bottom = 3.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -205,7 +215,7 @@ import com.sibi.store.core.*
         TvControl(onClick = { if (busy) model.pause(r.sha256) else action(app) }, modifier = Modifier.fillMaxWidth().height(40.dp).focusRequester(actionFocus), gold = true,
             enabled = status !in listOf(Availability.INCOMPATIBLE, Availability.SIGNATURE_MISMATCH) && (state.connected || ready || status in listOf(Availability.CURRENT, Availability.NEWER))) {
             Spacer(Modifier.weight(1f)); TvGlyph(if (busy) "Pause" else "Updates", size = 21.dp); Spacer(Modifier.width(10.dp))
-            Text(when { busy -> "Pause"; ready -> "Install"; download?.state in listOf("paused", "failed") -> "Resume"; else -> statusLabel(status) }, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            Text(when { busy -> "Pause"; ready -> "Install"; download?.state in listOf("paused", "failed") -> "Resume"; else -> statusLabel(status) }, fontSize = 16.sp, fontWeight = FontWeight.Medium)
             Spacer(Modifier.weight(1f))
         }
         if (download != null && (busy || download.state in listOf("paused", "failed"))) {

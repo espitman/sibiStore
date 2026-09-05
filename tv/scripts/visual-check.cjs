@@ -22,6 +22,7 @@ function hierarchy() {
 }
 launch();
 const nodes = hierarchy();
+assert(nodes.some(n => n.text === 'Mac connected'), 'Start the Mac server and connect the QA TV before checking action focus.');
 const root = nodes.find(n => n.box[0] === 0 && n.box[1] === 0 && n.box[2] > n.box[3]);
 assert(root, 'A landscape TV viewport is required');
 const [,, width, height] = root.box;

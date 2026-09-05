@@ -12,4 +12,5 @@ if adb -s "emulator-$SIBI_EMULATOR_PORT" get-state >/dev/null 2>&1; then
   echo "QA emulator already running: emulator-$SIBI_EMULATOR_PORT"; exit 0
 fi
 echo "Starting isolated QA emulator: emulator-$SIBI_EMULATOR_PORT. Keep this process running during QA."
-exec "$ANDROID_HOME/emulator/emulator" -avd "$SIBI_AVD" -port "$SIBI_EMULATOR_PORT" -no-snapshot -no-window -no-audio -gpu swiftshader_indirect -memory 2048
+if [[ "${SIBI_EMULATOR_WINDOW:-0}" != "1" ]]; then set -- -no-window "$@"; fi
+exec "$ANDROID_HOME/emulator/emulator" -avd "$SIBI_AVD" -port "$SIBI_EMULATOR_PORT" -no-snapshot -no-audio -gpu swiftshader_indirect -memory 2048 "$@"
