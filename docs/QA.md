@@ -23,6 +23,8 @@
 
 ## Still required before calling the entire implementation complete
 
+The TV screenshot-audit helper also has 14 passing regression tests through `tv/scripts/test.sh`: RGB/RGBA screenshots, all five PNG row filters, split image-data chunks, missing text, transparent pixels, invalid bounds and non-PNG input. Transparent light pixels no longer count as visible text. These tests verify the QA helper, not full visual fidelity; shared Android tests and TV lint passed with this change.
+
 - Physical-device LAN mDNS discovery (manual connection and the Mac announcement are verified, not a substitute for this check).
 
 A physical Xiaomi phone running Android 14 is now connected over authorized USB debugging. The user approved installing the signed phone client, but Android rejected the installation with `INSTALL_FAILED_USER_RESTRICTED` (installation canceled/restricted on the device). No client was installed by that attempt, and no device security setting was changed or bypassed. Physical-device discovery is still unverified; the next installation attempt awaits the user's device-side approval. USB connectivity alone does not prove LAN discovery.

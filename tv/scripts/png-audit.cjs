@@ -47,7 +47,7 @@ function assertVisibleText(file, box, label) {
   let ink = 0;
   for (let y = y1; y < y2; y++) for (let x = x1; x < x2; x++) {
     const p = (y * width + x) * channels;
-    if (pixels[p] > 100 && pixels[p + 1] > 100 && pixels[p + 2] > 100) ink++;
+    if ((channels === 3 || pixels[p + 3] > 200) && pixels[p] > 100 && pixels[p + 1] > 100 && pixels[p + 2] > 100) ink++;
   }
   assert(ink > (x2 - x1) * (y2 - y1) * 0.03, `Screenshot is missing rendered text: ${label}; accessibility bounds alone are insufficient`);
 }
