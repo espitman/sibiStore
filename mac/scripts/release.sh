@@ -6,4 +6,5 @@ source "$SCRIPT_DIR/env.sh"
 export CSC_IDENTITY_AUTO_DISCOVERY=false
 bash "$SCRIPT_DIR/test.sh"
 npm run package -- "$@"
+bash "$SCRIPT_DIR/copy-desktop.sh"
 echo "Mac application created under mac/release/ (local build; no GitHub Release published)."

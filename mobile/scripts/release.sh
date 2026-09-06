@@ -21,5 +21,10 @@ SIBI_INPUT="$SIBI_PLATFORM_ROOT/app/build/outputs/apk/release/$SIBI_MODULE-relea
 SIBI_OUTPUT="$SIBI_PLATFORM_ROOT/release/sibi-store-$SIBI_PLATFORM.apk"
 "$SIBI_TOOLS/apksigner" sign --ks "$SIBI_KEYS/release.jks" --ks-key-alias sibi-store --ks-pass "file:$SIBI_KEYS/password" --out "$SIBI_OUTPUT" "$SIBI_INPUT"
 "$SIBI_TOOLS/apksigner" verify --verbose "$SIBI_OUTPUT"
+SIBI_DESKTOP_APK="$HOME/Desktop/sibi-store-$SIBI_PLATFORM.apk"
+[[ -d "$HOME/Desktop" && ! -L "$SIBI_DESKTOP_APK" && ! -d "$SIBI_DESKTOP_APK" ]] || { echo 'Desktop destination is unavailable or unsafe'; exit 1; }
+cp -p "$SIBI_OUTPUT" "$SIBI_DESKTOP_APK"
+cmp "$SIBI_OUTPUT" "$SIBI_DESKTOP_APK"
+echo "Desktop APK: $SIBI_DESKTOP_APK"
 echo "Signed APK: $SIBI_OUTPUT"
 echo "Back up the private signing directory outside the repository: $SIBI_KEYS"
