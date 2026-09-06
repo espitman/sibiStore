@@ -3,6 +3,7 @@
 - This is a personal home-LAN APK store. Platform roots are `mac/`, `mobile/`, and `tv/`.
 - Implement in order: Electron Mac server, Android phone, Android TV. Keep each platform's `design/reference.png` as the visual source of truth. All product UI is English, left-to-right, black/charcoal with #FFC107 accents.
 - The user manually copies APKs into the Mac library folder. Do not introduce cloud services, build watchers, external release crawling, or remote install controls.
+- Copy release artifacts into the Mac library only when the user explicitly requests it; a release request alone authorizes the Desktop copy only.
 - **Always use the checked-in Bash scripts for setup, run, build, test, and release**, including during agent work. Do not bypass them with direct npm, Gradle, or packaging commands. Add or repair the appropriate script when a workflow is missing. Scripts must locate the repository relative to their own location, use `set -euo pipefail`, and forward explicit arguments.
 - Script entry points live in each platform's `scripts/`. Common Android helpers live under `mobile/scripts/` and may be called by `tv/scripts/`.
 - After every successful release, automatically copy that platform's final artifact directly onto the user's Desktop, with no enclosing folder. Replace the previous Sibi Store artifact there; never copy signing files. This applies to Mac, phone and TV and must be implemented in the release scripts.

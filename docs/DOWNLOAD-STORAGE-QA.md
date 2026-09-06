@@ -42,3 +42,27 @@ Verification on 2026-09-06:
 
 The final signed APK is in the active Mac library for in-app update. Physical
 phone verification remains with the user.
+
+## TV 0.1.1
+
+The TV release includes the same shared storage behavior with native TV Settings
+controls, neutral gray/yellow styling and D-pad focus borders.
+
+- TV release script: core tests, TV lint, build and APK signature verification
+  passed. Desktop copy matched the final artifact.
+- Upgrade verification passed from TV 0.1.0 (1) to 0.1.1 (2), with the same
+  package and signing certificate; installed successfully on the QA TV emulator.
+- `bash tv/scripts/visual-check.sh emulator-5582` passed with a populated library
+  after reconnecting the emulator's stale QA server identity to the discovered
+  Mac. Both cold-launch and focused-action PNGs were inspected. The cold-launch
+  image was resized to the reference's 1672 x 941 dimensions for comparison.
+  Layout and TV styling are retained; actual catalog content differs.
+- Settings showed the existing partial download as 15 MB/one file. The default
+  was On; switching Off survived cold launch. D-pad navigation reached the clear
+  button and switch; OK toggled On and cleared the partial file to zero bytes
+  and zero files. All Settings text and controls fit the screen.
+- Downloaded BlueBeat TV through the store on the isolated TV emulator and
+  confirmed Android's installer. The store reported Installation complete and
+  storage returned to zero with automatic deletion enabled.
+- The TV APK is delivered on Desktop only. Adding it to the Mac library requires
+  an explicit user request. Physical TV verification remains with the user.

@@ -26,6 +26,12 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.state.ToggleableState
+import androidx.compose.ui.semantics.toggleableState
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sibi.store.core.*
@@ -86,10 +92,7 @@ import kotlinx.coroutines.launch
             Column(Modifier.weight(1f).fillMaxHeight().padding(start = 32.dp, end = 35.dp, top = 31.dp, bottom = 17.dp)) {
                 if (page == "Settings" || state.apps.isEmpty() && state.host == null) {
                     Text("Settings", fontSize = 28.sp, fontWeight = FontWeight.Bold)
-                    if (state.error != null) Text(state.error!!, color = TvGold, fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp))
-                    Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
-                        ConnectionPanel(model, state, Modifier.widthIn(max = 530.dp).verticalScroll(rememberScrollState()).padding(vertical = 20.dp))
-                    }
+                    TvSettings(model, state, Modifier.weight(1f).fillMaxWidth().padding(vertical = 18.dp))
                 } else {
                     BoxWithConstraints(Modifier.fillMaxWidth().height(58.dp)) {
                         Column {
@@ -262,4 +265,63 @@ import kotlinx.coroutines.launch
 private fun androidRequirement(api: Int): String {
     val version = mapOf(21 to "5", 22 to "5.1", 23 to "6", 24 to "7", 25 to "7.1", 26 to "8", 27 to "8.1", 28 to "9", 29 to "10", 30 to "11", 31 to "12", 32 to "12L", 33 to "13", 34 to "14", 35 to "15")[api]
     return if (version != null) "Android $version+" else "Android API $api+"
+}
+
+
+@Composable private fun TvSettings(model: StoreModel, state: StoreState, modifier: Modifier = Modifier) {
+    var address by remember(state.host?.url) { mutableStateOf(state.host?.url ?: "") }
+    LaunchedEffect(Unit) { model.refreshStorage() }
+    Row(modifier, horizontalArrangement = Arrangement.spacedBy(22.dp)) {
+        Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState())
+            .background(TvCardBrush, RoundedCornerShape(10.dp)).border(0.8.dp, TvBorder, RoundedCornerShape(10.dp)).padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Text("Downloaded APKs", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+            TvControl(onClick = { model.setDeleteAfterInstall(!state.deleteAfterInstall) },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 76.dp).semantics {
+                    role = Role.Switch
+                    stateDescription = if (state.deleteAfterInstall) "On" else "Off"
+                    toggleableState = if (state.deleteAfterInstall) ToggleableState.On else ToggleableState.Off
+                }) {
+                Column(Modifier.weight(1f).padding(end = 12.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Text("Delete after installation", fontSize = 13.sp)
+                    Text("Remove the APK after a successful install.", fontSize = 11.sp, color = TvMuted)
+                }
+                Box(Modifier.background(if(state.deleteAfterInstall) TvGold else TvBorder, RoundedCornerShape(5.dp)).padding(horizontal=10.dp,vertical=7.dp)) {
+                    Text(if(state.deleteAfterInstall) "On" else "Off", fontSize=12.sp, color=if(state.deleteAfterInstall) TvBlack else TvWhite)
+                }
+            }
+            Text("${bytesLabel(state.downloadUsage.bytes)} used", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = TvGold)
+            Text("Downloaded files: ${state.downloadUsage.files}\nIncludes partial downloads.", fontSize = 12.sp, color = TvMuted)
+            TvControl(onClick = model::clearDownloads, enabled = state.downloadUsage.files > 0 && !state.clearingDownloads,
+                modifier = Modifier.fillMaxWidth().height(42.dp)) {
+                Text(if(state.clearingDownloads) "Clearing…" else "Clear downloaded files", fontSize = 13.sp,
+                    color = if(state.downloadUsage.files > 0) TvWhite else TvMuted)
+            }
+            Text("Installed apps stay on your TV. Active downloads and installations are kept.", fontSize = 11.sp, color = TvMuted)
+            Text("Sibi Store ${BuildConfig.VERSION_NAME}", fontSize = 11.sp, color = TvMuted)
+        }
+        Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("Connect to your Mac", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+            Text("Keep Sibi Store open on your home network.", fontSize = 12.sp, color = TvMuted)
+            if (state.message != null || state.error != null) TvControl(onClick = model::clearMessage, modifier=Modifier.fillMaxWidth()) {
+                Text(state.error ?: state.message ?: "", fontSize=11.sp, color=TvGold, modifier=Modifier.weight(1f))
+                TvGlyph("Close", size=15.dp)
+            }
+            if (state.connected) Text("Connected to ${state.host?.name ?: "Mac"}", fontSize=12.sp, color=TvMuted)
+            state.hosts.forEach { host ->
+                TvControl(onClick={model.connect(host)}, modifier=Modifier.fillMaxWidth().heightIn(min=42.dp)) {
+                    TvGlyph("Computer", size=21.dp)
+                    Text(host.name, fontSize=12.sp, maxLines=2, overflow=TextOverflow.Ellipsis, modifier=Modifier.weight(1f).padding(horizontal=10.dp))
+                    TvGlyph("Chevron", size=17.dp)
+                }
+            }
+            if (state.hosts.isEmpty()) Text(if(state.loading) "Connecting…" else "Searching for Sibi Store…", fontSize=12.sp, color=TvMuted)
+            TvControl(onClick=model::discoverAgain, modifier=Modifier.fillMaxWidth().height(36.dp)) { Text("Search again", fontSize=12.sp) }
+            OutlinedTextField(value=address,onValueChange={address=it},label={Text("Mac address",fontSize=12.sp)},singleLine=true,
+                textStyle=TextStyle(fontSize=12.sp,color=TvWhite),modifier=Modifier.fillMaxWidth(),
+                colors=OutlinedTextFieldDefaults.colors(focusedBorderColor=TvGold,unfocusedBorderColor=TvBorder,focusedLabelColor=TvGold,cursorColor=TvGold))
+            TvControl(onClick={model.connectAddress(address)},enabled=address.isNotBlank() && !state.loading,
+                modifier=Modifier.fillMaxWidth().height(36.dp)) { Text(if(state.loading) "Connecting…" else "Connect",fontSize=12.sp) }
+        }
+    }
 }
