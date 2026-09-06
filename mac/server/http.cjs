@@ -1,5 +1,7 @@
 const Fastify = require('fastify');
-const { createReadStream } = require('node:fs');
+const { constants } = require('node:fs');
+const fs = require('node:fs/promises');
+const path = require('node:path');
 const crypto = require('node:crypto');
 const os = require('node:os');
 
@@ -27,21 +29,43 @@ async function createServer({ library, serverId, port = 8743, host = '0.0.0.0', 
   server.get('/artifacts/:hash.apk', async (request, reply) => {
     const v = library.versions.find(v => v.sha256 === request.params.hash);
     if (!v) return reply.code(404).send({ error: 'APK not found' });
+    let file;
+    try {
+      const root = await fs.realpath(library.folder);
+      const source = await fs.realpath(v.artifact);
+      const relative = path.relative(root,source);
+      if (!relative || relative === '..' || relative.startsWith('..'+path.sep) || path.isAbsolute(relative)) throw new Error('Source outside library');
+      file = await fs.open(source,constants.O_RDONLY | constants.O_NOFOLLOW);
+      const before = await file.stat();
+      if (!before.isFile() || before.size !== v.size) throw new Error('Source changed');
+      const hash = crypto.createHash('sha256'); const buffer = Buffer.alloc(256*1024); let position=0;
+      while(position < before.size) {
+        const {bytesRead}=await file.read(buffer,0,Math.min(buffer.length,before.size-position),position);
+        if (!bytesRead) throw new Error('Source changed');
+        hash.update(buffer.subarray(0,bytesRead)); position+=bytesRead;
+      }
+      const after = await file.stat(); const current = await fs.stat(source);
+      if (hash.digest('hex') !== v.sha256 || before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs || before.size !== after.size || current.ino !== after.ino || current.dev !== after.dev) throw new Error('Source changed');
+    } catch(e) {
+      await file?.close();
+      library.scan().catch(error=>library.report(error));
+      return reply.code(e.code === 'ENOENT' ? 404 : 409).send({error:'APK source is missing or changed. Refresh the library.'});
+    }
     const etag = `"${v.sha256}"`;
     reply.header('Accept-Ranges', 'bytes').header('ETag', etag).header('Content-Type', 'application/vnd.android.package-archive').header('Cache-Control', 'private, max-age=31536000, immutable');
-    if (request.headers['if-none-match'] === etag && !request.headers.range) return reply.code(304).send();
+    if (request.headers['if-none-match'] === etag && !request.headers.range) {await file.close();return reply.code(304).send();}
     let start = 0, end = v.size - 1;
     if (request.headers.range && (!request.headers['if-range'] || request.headers['if-range'] === etag)) {
       const range = parseRange(request.headers.range, v.size);
-      if (!range) return reply.code(416).header('Content-Range', `bytes */${v.size}`).send();
+      if (!range) {await file.close();return reply.code(416).header('Content-Range', `bytes */${v.size}`).send();}
       ({ start, end } = range);
       reply.code(206).header('Content-Range', `bytes ${start}-${end}/${v.size}`);
     }
     reply.header('Content-Length', end - start + 1);
-    if (request.method === 'HEAD') return reply.send();
+    if (request.method === 'HEAD') {await file.close();return reply.send();}
     const transfer = { id: crypto.randomUUID(), title: v.title, device: String(request.headers['x-device-name'] || request.ip).slice(0, 100), bytes: start, size: v.size, status: 'active', startedAt: new Date().toISOString() };
     transfers.unshift(transfer); if (transfers.length > 100) transfers.pop(); onChange();
-    const stream = createReadStream(v.artifact, { start, end });
+    const stream = file.createReadStream({start,end,autoClose:true});
     let last = 0;
     stream.on('data', chunk => { transfer.bytes += chunk.length; if (Date.now() - last > 250) { last = Date.now(); onChange(); } });
     stream.on('error', () => { transfer.status = 'failed'; onChange(); });

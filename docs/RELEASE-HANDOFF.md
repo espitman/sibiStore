@@ -7,7 +7,7 @@ The implementation is delivered as three local release artifacts. Physical-phone
 | Requirement | Implementation and evidence |
 | --- | --- |
 | Three platform roots, Mac first | `mac/`, `mobile/`, `tv/`; Electron/React server and separate Kotlin/Compose clients, with shared Android core. |
-| Manually copied APK library | Mac folder scanner, official manifest/signature tools, SQLite index and immutable artifact copies; server tests cover persistence and rejected conflicts. |
+| Manually copied APK library | Mac folder scanner, official manifest/signature tools, SQLite metadata index and direct source-folder serving; server tests cover persistence and rejected conflicts. |
 | Version comparison | Android `Long` and server `BigInt` version codes; SDK/ABI compatibility and certificate checks. Three Android version tests and current/legacy manifest tests pass. Display version names are not used for ordering. |
 | Local discovery and transfer | `_sibistore._tcp`, persistent server ID and versioned HTTP API; native Mac discovery passed again. HTTP Range/ETag, integrity verification and resumable transfer tests pass. Android physical-LAN discovery is assigned to user validation, not reported as passed. |
 | Download, install and update | Shared downloader and PackageInstaller verify size, hash, package, version and certificates. Emulator install/update and real pause/resume checks are recorded in `QA.md`; installation remains an Android-confirmed action. |

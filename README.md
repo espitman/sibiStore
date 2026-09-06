@@ -21,7 +21,7 @@ bash mac/scripts/test.sh
 bash mac/scripts/release.sh
 ```
 
-The Mac scanner currently requires Android SDK Build Tools and Java 17 for the official APK signature verifier. The Electron interface/server itself runs in JavaScript, not Java. The SDK can be selected in Settings. APKs are verified, snapshotted into immutable private storage, and indexed in SQLite. The input folder may then be cleaned without invalidating a published download.
+The Mac scanner currently requires Android SDK Build Tools and Java 17 for the official APK signature verifier. The Electron interface/server itself runs in JavaScript, not Java. The SDK can be selected in Settings. APKs are verified and served directly from the selected folder; only metadata is indexed in SQLite. No APK copies are stored inside the Mac app. Deleting or moving a source out of the folder removes it from the catalog on the next automatic scan. Download requests verify the current source before serving it.
 
 Discovery uses mDNS (`_sibistore._tcp`), followed by HTTP on port 8743. `/api/v1/info`, `/api/v1/catalog`, and `/artifacts/<sha256>.apk` are read-only LAN endpoints. Downloads support ETag and byte ranges. The current personal-LAN mode does not require pairing and must not be exposed to the public internet.
 

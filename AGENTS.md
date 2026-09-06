@@ -1,6 +1,7 @@
 # Sibi Store project rules
 
 - This is a personal home-LAN APK store. Platform roots are `mac/`, `mobile/`, and `tv/`.
+- The Mac serves APKs directly from the selected library folder. Never copy APKs into app-managed storage. Scanning must remove entries whose source files were deleted or moved out of that folder.
 - Implement in order: Electron Mac server, Android phone, Android TV. Keep each platform's `design/reference.png` as the visual source of truth. All product UI is English, left-to-right, black/charcoal with #FFC107 accents.
 - The user manually copies APKs into the Mac library folder. Do not introduce cloud services, build watchers, external release crawling, or remote install controls.
 - Copy release artifacts into the Mac library only when the user explicitly requests it; a release request alone authorizes the Desktop copy only.

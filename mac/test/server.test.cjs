@@ -32,7 +32,7 @@ test('current aapt2 labels, minimum SDK, major version and highest density icon'
   assert.equal(m.versionCode, '12884901890');
   assert.equal(m.iconPath, 'res/high.png');
 });
-test('library persists immutable verified files, rejects conflicts, serves resumable bytes and ETags', async t => {
+test('library indexes source files, rejects conflicts, serves resumable bytes and removes deleted sources', async t => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(),'sibi-test-')); const folder = path.join(root,'input');
   await fs.mkdir(folder); await fs.writeFile(path.join(folder,'one.apk'),'0123456789');
   const inspect = async file => {
@@ -50,13 +50,19 @@ test('library persists immutable verified files, rejects conflicts, serves resum
   const partial = await http.server.inject({url:version.downloadUrl,headers:{range:'bytes=3-6'}});
   assert.equal(partial.statusCode,206); assert.equal(partial.body,'3456'); assert.equal(partial.headers['content-range'],'bytes 3-6/10');
   assert.equal((await http.server.inject({url:version.downloadUrl,headers:{range:'bytes=15-'}})).statusCode,416);
-  await fs.unlink(path.join(folder,'one.apk'));
-  assert.equal((await http.server.inject(version.downloadUrl)).body,'0123456789');
+  assert.equal(version.artifact,path.join(folder,'one.apk'));
   assert.equal(await hashFile(version.artifact),version.sha256);
+  assert.equal(await fs.stat(path.join(root,'data','artifacts')).catch(()=>null),null);
   await fs.writeFile(path.join(folder,'new.apk'),'update'); await library.scan(); assert.equal(library.catalog()[0].versions[0].versionCode,'2');
-  await fs.writeFile(path.join(folder,'conflict.apk'),'different'); await library.scan(); assert.match(library.errors[0].message,/Version conflict/);
+  await fs.writeFile(path.join(folder,'z-conflict.apk'),'different'); await library.scan(); assert.match(library.errors[0].message,/Version conflict/);
   await fs.writeFile(path.join(folder,'bad.apk'),'broken'); await library.scan(); assert.ok(library.errors.some(e=>/signature invalid/.test(e.message)));
   assert.equal(library.versions.length,2);
   await library.close();
   library = await new Library({folder,dataDir:path.join(root,'data'),inspect}).init(); assert.equal(library.versions.length,2);
+  await fs.unlink(path.join(folder,'one.apk'));
+  await fs.unlink(path.join(folder,'z-conflict.apk'));
+  await library.scan();
+  assert.equal(library.versions.length,1);
+  assert.equal(library.versions[0].versionCode,'2');
+  assert.equal(library.catalog()[0].versions.length,1);
 });

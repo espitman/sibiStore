@@ -2,7 +2,7 @@
 
 ## Verified on 2026-09-05
 
-- Mac Node tests: metadata parsing (legacy and current aapt2 output), 64-bit version ordering, immutable APK storage, version conflicts, signature rejection, persistence, ETags and HTTP byte ranges.
+- Mac Node tests: metadata parsing (legacy and current aapt2 output), 64-bit version ordering, direct source-folder APK serving, version conflicts, signature rejection, persistence, ETags and HTTP byte ranges.
 - Real APK indexing through Android SDK `aapt2` and `apksigner`.
 - Electron preview UI: library, search, empty results, settings and server start/stop.
 - Packaged ad-hoc-signed Apple Silicon macOS application launches with bundled runtime, SQLite and IPC.
