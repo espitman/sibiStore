@@ -15,7 +15,7 @@ function addresses(port) {
 }
 async function createServer({ library, serverId, port = 8743, host = '0.0.0.0', advertise = true, onChange = () => {} }) {
   const server = Fastify({ logger: false });
-  const transfers = []; let bonjour, service;
+  const transfers = []; let bonjour, service, nativeDiscovery;
   server.get('/api/v1/info', async () => ({ protocolVersion: 1, serverId, name: `Sibi Store — ${os.hostname()}`, port }));
   server.get('/api/v1/catalog', async (request, reply) => {
     const catalog = { protocolVersion: 1, serverId, apps: library.catalog() };
@@ -54,13 +54,19 @@ async function createServer({ library, serverId, port = 8743, host = '0.0.0.0', 
   let discoveryError = null;
   if (advertise) {
     try {
-      const { Bonjour } = require('bonjour-service');
-      bonjour = new Bonjour({}, e => { discoveryError = e.message; onChange(); });
-      service = bonjour.publish({ name: `Sibi Store — ${os.hostname()}`, type: 'sibistore', port: actualPort, txt: { serverId, api: '1' } });
-      service.on('error', e => { discoveryError = e.message; onChange(); });
+      const name = `Sibi Store — ${os.hostname()}`;
+      const report = message => { discoveryError = message; onChange(); };
+      if (process.platform === 'darwin') {
+        nativeDiscovery = require('./discovery.cjs').advertise({ name, port: actualPort, serverId, onError: report });
+      } else {
+        const { Bonjour } = require('bonjour-service');
+        bonjour = new Bonjour({}, e => report(e.message));
+        service = bonjour.publish({ name, type: 'sibistore', port: actualPort, disableIPv6: true, txt: { serverId, api: '1' } });
+        service.on('error', e => report(e.message));
+      }
     } catch (e) { discoveryError = e.message; }
   }
   return { server, transfers, port: actualPort, addresses: () => addresses(actualPort), discoveryError: () => discoveryError,
-    async close() { if (service) await new Promise(resolve => service.stop(resolve)); bonjour?.destroy(); await server.close(); } };
+    async close() { await nativeDiscovery?.close(); if (service) await new Promise(resolve => service.stop(resolve)); bonjour?.destroy(); await server.close(); } };
 }
 module.exports = { createServer, parseRange, addresses };
