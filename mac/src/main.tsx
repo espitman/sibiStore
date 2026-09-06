@@ -16,11 +16,16 @@ function AppIcon({ app, large = false }: { app: App; large?: boolean }) {
 function Desktop() {
   const [state, setState] = useState<State | null>(null);
   const [page, setPage] = useState('Library'); const [query, setQuery] = useState('');
+  const [platform, setPlatform] = useState<'All' | 'Phone' | 'TV'>('All');
   const [selected, setSelected] = useState('com.sibi.player'); const [details, setDetails] = useState(false);
   const [error, setError] = useState(''); const [copied, setCopied] = useState(false);
   const invoke = async (fn: () => Promise<unknown>) => { try { await fn(); } catch(e) { setError(e instanceof Error ? e.message : String(e)); } };
   useEffect(() => { window.sibi.snapshot().then(setState).catch(e => setError(e.message)); return window.sibi.onChange(setState); }, []);
-  const apps = state?.apps.filter(a => `${a.title} ${a.packageName}`.toLowerCase().includes(query.toLowerCase())) || [];
+  const platformApps = (state?.apps || []).flatMap(a => {
+    const versions = a.versions.filter(v => platform === 'All' || v.tv === (platform === 'TV'));
+    return versions.length ? [{ ...a, versions }] : [];
+  });
+  const apps = platformApps.filter(a => `${a.title} ${a.packageName}`.toLowerCase().includes(query.toLowerCase()));
   const app = apps.find(a => a.packageName === selected) || apps[0];
   const version = app?.versions[0];
   const active = state?.transfers.filter(t => t.status === 'active') || [];
@@ -42,14 +47,15 @@ function Desktop() {
           <div className="library-main">
             <div className="folder-strip"><Folder size={20}/><span className="folder-path" title={state?.folder}>{state?.folder || 'Loading library…'}</span><span className="strip-divider"/><span>{state?.apps.length || 0} apps</span><span className="strip-divider"/><span>{versions} versions</span><small>{state?.scanning ? 'Scanning…' : state?.lastScan ? 'Scanned just now' : 'Not scanned'}</small></div>
             {state?.errors.length ? <details className="scan-errors"><summary><AlertCircle size={16}/>{state.errors.length} {state.errors.length === 1 ? 'file needs' : 'files need'} attention</summary>{state.errors.map((e,i) => <p key={i}><strong>{e.file}</strong><br/>{e.message}</p>)}</details> : null}
+            <div className="platform-filters" role="group" aria-label="Filter by platform">{(['All', 'Phone', 'TV'] as const).map(value => <button key={value} aria-pressed={platform === value} className={platform === value ? 'active' : ''} onClick={() => { setPlatform(value); setDetails(false); }}>{value}<span>{(state?.apps || []).filter(a => value === 'All' || a.versions.some(v => v.tv === (value === 'TV'))).length}</span></button>)}</div>
             <div className="table-scroll"><table><thead><tr><th>App</th><th>Latest version</th><th>Size</th><th>Status</th></tr></thead><tbody>{apps.map(a => <tr key={a.packageName} className={a.packageName === app?.packageName ? 'selected' : ''} tabIndex={0} onClick={() => { setSelected(a.packageName); setDetails(false); }} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelected(a.packageName); } }} aria-selected={a.packageName === app?.packageName}><td><div className="app-cell"><AppIcon app={a}/><div><strong>{a.title}</strong><small title={a.packageName}>{a.packageName}</small></div></div></td><td>{a.versions[0].versionName || a.versions[0].versionCode}</td><td>{size(a.versions[0].size)}</td><td><span className="ready"><i className="dot"/>Ready</span></td></tr>)}</tbody></table>
-              {!apps.length && <div className="empty"><FileBox size={42}/><h2>{query ? 'No matching apps' : 'Your library starts here'}</h2><p>{query ? 'Try another app name or package.' : 'Copy APKs into your folder. Sibi Store will take care of the rest.'}</p>{!query && <button className="outline-button" onClick={() => invoke(() => window.sibi.openFolder())}><Folder size={18}/>Open APK folder</button>}</div>}
+              {!apps.length && <div className="empty"><FileBox size={42}/><h2>{query ? 'No matching apps' : platform !== 'All' ? `No ${platform === 'TV' ? 'TV' : 'phone'} apps` : 'Your library starts here'}</h2><p>{query ? 'Try another app name or package.' : platform !== 'All' ? 'Choose All or copy matching APKs into your folder.' : 'Copy APKs into your folder. Sibi Store will take care of the rest.'}</p>{!query && <button className="outline-button" onClick={() => invoke(() => window.sibi.openFolder())}><Folder size={18}/>Open APK folder</button>}</div>}
             </div>
             <div className="table-footer">{apps.length} of {state?.apps.length || 0} apps <span><Wifi size={14}/>{state?.running ? `Listening on port ${state.port}` : 'Server offline'}</span></div>
           </div>
           <aside className="inspector">{app && version ? <><div className="inspector-heading"><AppIcon app={app} large/><div><h2>{app.title}</h2><p className="package" title={app.packageName}>{app.packageName}</p><span className="ready"><i className="dot"/>Ready to serve</span></div></div>
             <h3>Version history</h3><div className="version-list">{app.versions.map((v,i) => <div className="version-entry" key={v.sha256}><div className="version-title">{v.versionName || v.versionCode}{i === 0 && <span className="latest">Latest</span>}</div><p>Version code {v.versionCode} · {size(v.size)}</p><div className="version-file"><span title={v.filename}>{v.filename}</span><time>{date(v.addedAt)}</time></div></div>)}</div>
-            <h3>Compatibility</h3><div className="info-row"><span>Platform</span><span>{version.tv ? 'Phone & TV' : 'Android'}</span></div><div className="info-row"><span>Minimum SDK</span><span>API {version.minSdk}</span></div><div className="info-row"><span>Architecture</span><span>{version.abis.length ? version.abis.join(', ') : 'Universal'}</span></div>
+            <h3>Compatibility</h3><div className="info-row"><span>Platform</span><span>{version.tv ? 'TV' : 'Phone'}</span></div><div className="info-row"><span>Minimum SDK</span><span>API {version.minSdk}</span></div><div className="info-row"><span>Architecture</span><span>{version.abis.length ? version.abis.join(', ') : 'Universal'}</span></div>
             <button className="disclosure" onClick={() => setDetails(!details)}>File details{details ? <ChevronDown size={18}/> : <ChevronRight size={18}/>}</button>{details && <div className="file-details"><label>SHA-256</label><code>{version.sha256}</code><label>Signing certificate</label><code>{version.certificates.join('\n')}</code></div>}
             <button className="outline-button reveal" onClick={() => invoke(() => window.sibi.reveal(version.sha256))}><Folder size={18}/>Reveal in Finder</button>
           </> : <div className="inspector-placeholder"><FileBox size={32}/><p>Select an app to see its versions and file details.</p></div>}</aside>
