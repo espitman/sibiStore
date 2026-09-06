@@ -24,28 +24,64 @@ import java.io.File
 import java.util.concurrent.TimeUnit
 
 data class StoreState(val apps: List<StoreApp> = emptyList(), val installed: Map<String,Installed> = emptyMap(), val hosts: List<Host> = emptyList(),
+    val deleteAfterInstall: Boolean = true, val downloadUsage: DownloadUsage = DownloadUsage(), val clearingDownloads: Boolean = false,
     val host: Host? = null, val connected: Boolean = false, val loading: Boolean = false, val error: String? = null, val message: String? = null, val downloads: Map<String,Download> = emptyMap())
 class StoreModel(application: Application) : AndroidViewModel(application) {
     private val context = application
     private val prefs = context.getSharedPreferences("sibi",Context.MODE_PRIVATE)
     private val cache = File(context.filesDir,"catalog.json")
-    private val _state = MutableStateFlow(StoreState(host = prefs.getString("url",null)?.let { Host(prefs.getString("hostName","My Mac")!!,it,prefs.getString("serverId","")!!) }))
+    private val _state = MutableStateFlow(StoreState(deleteAfterInstall = autoDeleteDownloads(context), host = prefs.getString("url",null)?.let { Host(prefs.getString("hostName","My Mac")!!,it,prefs.getString("serverId","")!!) }))
     val state = _state.asStateFlow()
     private val client = OkHttpClient.Builder().connectTimeout(5,TimeUnit.SECONDS).readTimeout(15,TimeUnit.SECONDS).build()
     private val work = WorkManager.getInstance(context)
     private var refreshJob: Job? = null
     private var healthJob: Job? = null
     private val workLive = work.getWorkInfosByTagLiveData("sibi-download")
-    private val observer = Observer<List<WorkInfo>> { infos ->
+    private fun updateDownloads(infos: List<WorkInfo>?) {
         val downloads = infos.orEmpty().groupBy { it.tags.firstOrNull { tag -> tag.startsWith("hash:") }?.removePrefix("hash:") ?: "" }.mapNotNull { (hash, tasks) ->
             if(hash.isEmpty() || hash in prefs.getStringSet("cancelledDownloads",emptySet())!!) return@mapNotNull null
             val active = tasks.firstOrNull { !it.state.isFinished } ?: tasks.firstOrNull { it.state == WorkInfo.State.SUCCEEDED } ?: tasks.first()
             val release = _state.value.apps.flatMap { it.versions }.find { it.sha256 == hash }
             val file = downloadFile(context,hash)
+            if (active.state.isFinished && !file.exists() && !downloadFile(context,hash,".part").exists()) return@mapNotNull null
             val status = when { file.exists() -> "ready"; active.state == WorkInfo.State.RUNNING -> "downloading"; active.state == WorkInfo.State.ENQUEUED || active.state == WorkInfo.State.BLOCKED -> "queued"; active.state == WorkInfo.State.CANCELLED -> "paused"; active.state == WorkInfo.State.FAILED -> "failed"; else -> "queued" }
             hash to Download(hash, if(file.exists()) file.length() else active.progress.getLong("bytes",downloadFile(context,hash,".part").length()),release?.size ?: active.progress.getLong("total",0),status,active.outputData.getString("error"))
         }.toMap()
         _state.update { it.copy(downloads=downloads) }
+    }
+    private val observer = Observer<List<WorkInfo>> { infos -> updateDownloads(infos); refreshStorage(false) }
+    fun refreshStorage(reconcile: Boolean = true) {
+        viewModelScope.launch {
+            val usage = withContext(Dispatchers.IO) {
+                if (reconcile) reconcileInstallDownloads(context)
+                downloadUsage(downloadsFolder(context))
+            }
+            _state.update { it.copy(downloadUsage=usage) }
+            updateDownloads(workLive.value)
+        }
+    }
+    fun setDeleteAfterInstall(enabled: Boolean) {
+        prefs.edit().putBoolean("deleteAfterInstall",enabled).apply()
+        _state.update { it.copy(deleteAfterInstall=enabled) }
+    }
+    fun clearDownloads() {
+        if (_state.value.clearingDownloads) return
+        _state.update { it.copy(clearingDownloads=true) }
+        viewModelScope.launch {
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    reconcileInstallDownloads(context)
+                    val active = work.getWorkInfosByTag("sibi-download").get().filter { !it.state.isFinished }
+                        .flatMap { it.tags }.filter { it.startsWith("hash:") }.map { it.removePrefix("hash:") }.toSet()
+                    clearStoredDownloads(downloadsFolder(context),active + installationDownloadHashes(context))
+                }
+                val pending=prefs.getStringSet("pendingInstalls",emptySet())!!.toMutableSet().apply { removeAll(result.hashes) }
+                prefs.edit().putStringSet("pendingInstalls",pending).apply()
+                _state.update { it.copy(message=if(result.failed>0) "Some downloaded files could not be deleted. Try again." else "Downloaded files cleared. Files in use are kept.") }
+                refreshStorage(false)
+            } catch(e: Exception) { report(e.message ?: "Could not clear downloaded files") }
+            finally { _state.update { it.copy(clearingDownloads=false) } }
+        }
     }
     private val discovery = Discovery(context,{ host -> viewModelScope.launch {
         _state.update { it.copy(hosts = (it.hosts.filterNot { h -> h.url == host.url || h.id.isNotEmpty() && h.id == host.id } + host)) }
@@ -67,7 +103,7 @@ class StoreModel(application: Application) : AndroidViewModel(application) {
     fun stop() { discovery.stop(); healthJob?.cancel(); healthJob = null }
     fun clearMessage() { _state.update { it.copy(error=null,message=null) } }
     fun report(message: String) { _state.update { it.copy(error=message) } }
-    fun readInstallResult() { prefs.getString("installResult",null)?.let { m -> _state.update { it.copy(message=m) }; prefs.edit().remove("installResult").apply() }; refreshInstalled() }
+    fun readInstallResult() { refreshStorage(); prefs.getString("installResult",null)?.let { m -> _state.update { it.copy(message=m) }; prefs.edit().remove("installResult").apply() }; refreshInstalled() }
     fun refreshInstalled() { viewModelScope.launch(Dispatchers.IO) { val values = _state.value.apps.mapNotNull { a -> installed(context,a.packageName)?.let { a.packageName to it } }.toMap(); _state.update { it.copy(installed=values) } } }
     fun discoverAgain() { discovery.stop(); _state.update { it.copy(hosts=emptyList(),error=null) }; discovery.start() }
     fun connectAddress(address: String) {
@@ -108,6 +144,7 @@ class StoreModel(application: Application) : AndroidViewModel(application) {
     fun release(app: StoreApp) = newest(app,Build.VERSION.SDK_INT,Build.SUPPORTED_ABIS.toList())
     fun status(app: StoreApp) = availability(release(app),_state.value.installed[app.packageName])
     fun download(release: Release) {
+        if (_state.value.clearingDownloads) return
         val host = _state.value.host ?: return
         val cancelled = prefs.getStringSet("cancelledDownloads",emptySet())!!.toMutableSet().apply { remove(release.sha256) }
         prefs.edit().putStringSet("cancelledDownloads",cancelled).apply()

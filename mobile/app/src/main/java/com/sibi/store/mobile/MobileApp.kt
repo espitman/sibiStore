@@ -16,6 +16,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sibi.store.core.*
@@ -38,7 +40,7 @@ import com.sibi.store.core.*
             if(state.error != null || state.message != null) Surface(color=Color(0xFF302810)) { Row(Modifier.fillMaxWidth().padding(start=16.dp),verticalAlignment=Alignment.CenterVertically) { Text(state.error ?: state.message ?: "",Modifier.weight(1f),fontSize=12.sp,color=Gold); IconButton(onClick={model.clearMessage()}) { Icon(Icons.Outlined.Close,"Dismiss",Modifier.size(18.dp)) } } }
             when {
                 app != null -> AppDetails(app,model,state,action){selected=null}
-                tab == "Settings" -> Column(Modifier.verticalScroll(rememberScrollState()).padding(22.dp)) { Text("Settings",fontSize=28.sp,fontWeight=FontWeight.Bold); Spacer(Modifier.height(25.dp)); ConnectionPanel(model,state); Spacer(Modifier.height(30.dp)); Text("Sibi Store 0.1.0",color=Muted,fontSize=12.sp) }
+                tab == "Settings" -> SettingsScreen(model,state)
                 tab == "Updates" -> UpdatesScreen((updates + transfers).distinctBy { it.packageName },model,state,action)
                 else -> LibraryScreen(model,state,updates.size,action,{selected=it.packageName},{tab="Updates"},{tab="Settings"})
             }
@@ -131,5 +133,36 @@ import com.sibi.store.core.*
             }
         }; if(apps.isEmpty()) item { Column(Modifier.fillMaxWidth().padding(top=100.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(15.dp)) { Icon(Icons.Outlined.CheckCircle,null,tint=Gold,modifier=Modifier.size(42.dp)); Text(if(state.connected)"You're up to date" else "Connect to check for updates",color=Muted) } } }
         Row(Modifier.fillMaxWidth().padding(vertical=16.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.Center) { Icon(Icons.Outlined.Info,null,tint=Muted,modifier=Modifier.size(17.dp)); Text("Confirm installation after downloading",color=Muted,fontSize=12.sp,modifier=Modifier.padding(start=10.dp)) }
+    }
+}
+
+@Composable private fun SettingsScreen(model: StoreModel, state: StoreState) {
+    LaunchedEffect(Unit) { model.refreshStorage() }
+    Column(Modifier.verticalScroll(rememberScrollState()).padding(22.dp),verticalArrangement=Arrangement.spacedBy(22.dp)) {
+        Text("Settings",fontSize=28.sp,fontWeight=FontWeight.Bold)
+        Surface(color=Panel,shape=RoundedCornerShape(14.dp)) {
+            Column(Modifier.padding(18.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
+                Text("Downloaded APKs",fontSize=20.sp,fontWeight=FontWeight.SemiBold)
+                Row(verticalAlignment=Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f).padding(end=12.dp)) {
+                        Text("Delete after installation",fontSize=15.sp)
+                        Text("Automatically remove the APK after a successful install.",fontSize=12.sp,color=Muted)
+                    }
+                    Switch(checked=state.deleteAfterInstall,onCheckedChange=model::setDeleteAfterInstall,
+                        modifier=Modifier.semantics { contentDescription = "Delete APK after successful installation" },
+                        colors=SwitchDefaults.colors(checkedThumbColor=DeepBlack,checkedTrackColor=Gold))
+                }
+                Divider(color=Border)
+                Text("${bytesLabel(state.downloadUsage.bytes)} used",fontSize=24.sp,fontWeight=FontWeight.Bold,color=Gold)
+                Text("Downloaded files: ${state.downloadUsage.files} (including partial downloads)",fontSize=12.sp,color=Muted)
+                OutlinedButton(onClick=model::clearDownloads,enabled=state.downloadUsage.files>0 && !state.clearingDownloads,modifier=Modifier.fillMaxWidth()) {
+                    Icon(Icons.Outlined.DeleteOutline,null,Modifier.size(18.dp)); Spacer(Modifier.width(8.dp))
+                    Text(if(state.clearingDownloads) "Clearing…" else "Clear downloaded files")
+                }
+                Text("Installed apps stay on your phone. Active downloads and installations are kept.",fontSize=12.sp,color=Muted)
+            }
+        }
+        ConnectionPanel(model,state)
+        Text("Sibi Store ${BuildConfig.VERSION_NAME}",color=Muted,fontSize=12.sp)
     }
 }

@@ -13,6 +13,7 @@ import androidx.work.workDataOf
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.withLock
 import okhttp3.OkHttpClient
 import java.io.File
 import java.security.MessageDigest
@@ -32,16 +33,18 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
         val expected = inputData.getLong("size",0)
         if (!hash.matches(Regex("[a-f0-9]{64}")) || expected <= 0) return@withContext Result.failure(workDataOf("error" to "Invalid download metadata"))
         val partial = downloadFile(applicationContext,hash,".part"); val final = downloadFile(applicationContext,hash)
-        try {
-            if (final.exists() && final.length() == expected && sha256(final) == hash) return@withContext Result.success(workDataOf("hash" to hash))
-            setForeground(notification(title))
-            val client = OkHttpClient.Builder().connectTimeout(10,TimeUnit.SECONDS).readTimeout(30,TimeUnit.SECONDS).build()
-            transfer(client,url,Build.MODEL,hash,expected,partial,final) { done ->
-                setProgress(workDataOf("bytes" to done,"total" to expected))
-            }
-            Result.success(workDataOf("hash" to hash))
-        } catch(e: CancellationException) { throw e }
-        catch(e: Exception) { Result.failure(workDataOf("error" to (e.message ?: "Download failed"))) }
+        downloadLock(hash).withLock {
+            try {
+                if (final.exists() && final.length() == expected && sha256(final) == hash) return@withContext Result.success(workDataOf("hash" to hash))
+                setForeground(notification(title))
+                val client = OkHttpClient.Builder().connectTimeout(10,TimeUnit.SECONDS).readTimeout(30,TimeUnit.SECONDS).build()
+                transfer(client,url,Build.MODEL,hash,expected,partial,final) { done ->
+                    setProgress(workDataOf("bytes" to done,"total" to expected))
+                }
+                Result.success(workDataOf("hash" to hash))
+            } catch(e: CancellationException) { throw e }
+            catch(e: Exception) { Result.failure(workDataOf("error" to (e.message ?: "Download failed"))) }
+        }
     }
     private fun notification(title: String): ForegroundInfo {
         val nm = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
