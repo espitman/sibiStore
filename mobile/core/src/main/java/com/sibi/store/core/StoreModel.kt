@@ -28,6 +28,7 @@ data class StoreState(val apps: List<StoreApp> = emptyList(), val installed: Map
     val host: Host? = null, val connected: Boolean = false, val loading: Boolean = false, val error: String? = null, val message: String? = null, val downloads: Map<String,Download> = emptyMap())
 class StoreModel(application: Application) : AndroidViewModel(application) {
     private val context = application
+    private val tvClient = context.resources.getBoolean(R.bool.sibi_tv_client)
     private val prefs = context.getSharedPreferences("sibi",Context.MODE_PRIVATE)
     private val cache = File(context.filesDir,"catalog.json")
     private val _state = MutableStateFlow(StoreState(deleteAfterInstall = autoDeleteDownloads(context), host = prefs.getString("url",null)?.let { Host(prefs.getString("hostName","My Mac")!!,it,prefs.getString("serverId","")!!) }))
@@ -90,7 +91,7 @@ class StoreModel(application: Application) : AndroidViewModel(application) {
     } },{ error -> _state.update { if(it.connected) it else it.copy(error=error) } })
     init {
         viewModelScope.launch(Dispatchers.IO) {
-            runCatching { parseCatalog(cache.readText()).second }.onSuccess { apps -> _state.update { it.copy(apps=apps) }; refreshInstalled() }
+            runCatching { catalogForClient(parseCatalog(cache.readText()).second,tvClient) }.onSuccess { apps -> _state.update { it.copy(apps=apps) }; refreshInstalled() }
         }
         workLive.observeForever(observer)
     }
@@ -139,7 +140,7 @@ class StoreModel(application: Application) : AndroidViewModel(application) {
         val raw = withContext(Dispatchers.IO) { client.newCall(Request.Builder().url("${host.url}/api/v1/catalog").build()).execute().use { require(it.isSuccessful) { "Catalog request failed (${it.code})" }; it.body!!.string() } }
         val (id,apps) = parseCatalog(raw); require(id == host.id) { "Server identity does not match" }
         withContext(Dispatchers.IO) { cache.writeText(raw) }
-        _state.update { it.copy(apps=apps,connected=true,error=null) }; refreshInstalled()
+        _state.update { it.copy(apps=catalogForClient(apps,tvClient),connected=true,error=null) }; refreshInstalled()
     }
     fun release(app: StoreApp) = newest(app,Build.VERSION.SDK_INT,Build.SUPPORTED_ABIS.toList())
     fun status(app: StoreApp) = availability(release(app),_state.value.installed[app.packageName])

@@ -7,6 +7,11 @@ data class Release(val packageName: String, val title: String, val versionCode: 
     val size: Long, val minSdk: Int, val abis: List<String>, val tv: Boolean, val sha256: String,
     val certificates: List<String>, val downloadUrl: String, val addedAt: String, val filename: String)
 data class StoreApp(val packageName: String, val title: String, val icon: String?, val versions: List<Release>)
+/** Partition releases before compatibility/update selection, including cached catalogs. */
+fun catalogForClient(apps: List<StoreApp>, tvClient: Boolean): List<StoreApp> = apps.mapNotNull { app ->
+    val versions = app.versions.filter { it.tv == tvClient }
+    if (versions.isEmpty()) null else app.copy(versions = versions)
+}
 data class Host(val name: String, val url: String, val id: String = "")
 data class Installed(val versionCode: Long, val versionName: String, val certificates: List<String>)
 data class Download(val hash: String, val bytes: Long = 0, val total: Long = 0, val state: String = "queued", val error: String? = null)

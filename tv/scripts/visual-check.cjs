@@ -21,6 +21,9 @@ function hierarchy() {
     return node;
   });
 }
+// A prior touch-based installer leaves the emulator in touch mode, which has no
+// remote focus. Enter D-pad mode before the cold launch whose focus is tested.
+call('shell', 'input', 'keyevent', 'KEYCODE_DPAD_UP');
 launch();
 const nodes = hierarchy();
 assert(nodes.some(n => n.text === 'Mac connected'), 'Start the Mac server and connect the QA TV before checking action focus.');

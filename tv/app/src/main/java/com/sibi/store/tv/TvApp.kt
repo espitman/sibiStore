@@ -190,7 +190,9 @@ import kotlinx.coroutines.launch
         .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick)
         .padding(start = 7.dp, end = 7.dp, top = 16.dp, bottom = 3.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         TvAppIcon(app, 62.dp)
-        Spacer(Modifier.height(10.dp))
+        // Fallback fonts (for example Persian titles) need a taller text line.
+        // Let the gap shrink so the version and status always stay inside the card.
+        Spacer(Modifier.weight(1f))
         Text(app.title, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(model.release(app)?.versionName ?: "—", fontSize = 13.sp, color = TvMuted, modifier = Modifier.padding(top = 4.dp))
         Text(when (status) {
