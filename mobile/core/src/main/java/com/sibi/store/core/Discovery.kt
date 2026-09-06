@@ -3,9 +3,14 @@ package com.sibi.store.core
 import android.content.Context
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
+import android.net.wifi.WifiManager
 
-/** DNS-SD delegates multicast discovery to Android; no subnet scanning or location lookup. */
+/** DNS-SD with foreground multicast reception and a local HTTP discovery fallback. */
 class Discovery(context: Context, private val found: (Host) -> Unit, private val error: (String) -> Unit) {
+    private val fallback = LanDiscovery(context, found)
+    private val wifi = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+    private var multicast: WifiManager.MulticastLock? = null
+    private fun releaseMulticast() { multicast?.let { if (it.isHeld) it.release() }; multicast = null }
     private val manager = context.getSystemService(Context.NSD_SERVICE) as NsdManager
     @Volatile private var listener: NsdManager.DiscoveryListener? = null
     private val queue = ArrayDeque<NsdServiceInfo>()
@@ -13,7 +18,7 @@ class Discovery(context: Context, private val found: (Host) -> Unit, private val
     private fun newListener() = object : NsdManager.DiscoveryListener {
         override fun onDiscoveryStarted(type: String) {}
         override fun onDiscoveryStopped(type: String) { if(listener === this) listener = null }
-        override fun onStartDiscoveryFailed(type: String, code: Int) { if(listener === this) { listener = null; error("Discovery unavailable ($code). Enter your Mac's address.") } }
+        override fun onStartDiscoveryFailed(type: String, code: Int) { if(listener === this) { listener = null; releaseMulticast(); error("Wi-Fi discovery unavailable ($code). Searching the local network…") } }
         override fun onStopDiscoveryFailed(type: String, code: Int) { if(listener === this) listener = null }
         override fun onServiceFound(info: NsdServiceInfo) { synchronized(queue) { if(listener === this) { queue.add(info); resolveNext() } } }
         override fun onServiceLost(info: NsdServiceInfo) { /* HTTP checks decide connection liveness. */ }
@@ -37,12 +42,18 @@ class Discovery(context: Context, private val found: (Host) -> Unit, private val
     }
     fun start() {
         if (listener != null) return
+        fallback.start()
+        try {
+            multicast = wifi?.createMulticastLock("sibi-discovery")?.apply { setReferenceCounted(false); acquire() }
+        } catch (_: SecurityException) { /* HTTP fallback remains available. */ }
         val session = newListener()
         listener = session
         try { manager.discoverServices("_sibistore._tcp.", NsdManager.PROTOCOL_DNS_SD, session) }
-        catch(e: Exception) { if(listener === session) listener = null; error(e.message ?: "Discovery unavailable") }
+        catch(e: Exception) { if(listener === session) { listener = null; releaseMulticast() }; error(e.message ?: "Discovery unavailable") }
     }
     fun stop() {
+        fallback.stop()
+        releaseMulticast()
         val session = listener
         listener = null
         synchronized(queue) { queue.clear() }
