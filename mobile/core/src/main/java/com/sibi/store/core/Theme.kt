@@ -45,9 +45,9 @@ val Green = Color(0xFF16C98D)
     val shape = RoundedCornerShape(size*0.23f)
     val bytes = remember(app.icon) { app.icon?.takeIf { it.startsWith("data:image/") && it.contains(";base64,") }?.let { runCatching { Base64.decode(it.substringAfter(";base64,"), Base64.DEFAULT) }.getOrNull() } }
     Box(Modifier.size(size).clip(shape).background(if(app.title.contains("Sibi",true)) Gold else Color(0xFF202025)),contentAlignment=Alignment.Center) {
-        if(app.title.contains("Sibi",true)) Icon(Icons.Filled.PlayArrow,null,tint=DeepBlack,modifier=Modifier.size(size*0.7f))
-        else Text(app.title.take(1).uppercase(),fontSize=(size.value*0.48f).sp,fontWeight=FontWeight.Bold)
         if (bytes != null) AsyncImage(model=bytes,contentDescription=null,modifier=Modifier.fillMaxSize())
+        else if(app.title.contains("Sibi",true)) Icon(Icons.Filled.PlayArrow,null,tint=DeepBlack,modifier=Modifier.size(size*0.7f))
+        else Text(app.title.take(1).uppercase(),fontSize=(size.value*0.48f).sp,fontWeight=FontWeight.Bold)
     }
 }
 @Composable fun Dot(connected: Boolean) { Box(Modifier.size(8.dp).clip(RoundedCornerShape(8.dp)).background(if(connected) Green else Muted)) }

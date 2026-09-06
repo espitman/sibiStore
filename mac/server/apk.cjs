@@ -4,6 +4,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const os = require('node:os');
 const run = promisify(execFile);
+const { extractIcon, ICON_REVISION } = require('./icons.cjs');
 
 function parseBadging(text) {
   const pkg = text.match(/^package: name='([^']+)' versionCode='(\d+)' versionName='([^']*)'/m);
@@ -16,7 +17,7 @@ function parseBadging(text) {
   return { packageName: pkg[1], versionCode, versionName: pkg[3],
     title: text.match(/^application-label-en:'([^']*)'/m)?.[1] || text.match(/^application-label:'([^']*)'/m)?.[1] || text.match(/^application: label='([^']*)'/m)?.[1] || pkg[1],
     minSdk, abis, tv: /^leanback-launchable-activity:/m.test(text),
-    iconPath: [...text.matchAll(/^application-icon-(\d+):'([^']+\.(?:png|webp|jpg))'/gm)].sort((a,b) => Number(b[1])-Number(a[1]))[0]?.[2] || text.match(/^application:.*\bicon='([^']+\.(?:png|webp|jpg))'/m)?.[1] };
+    iconPath: [...text.matchAll(/^application-icon-(\d+):'([^']+\.(?:png|webp|jpe?g|xml))'/gm)].sort((a,b) => Number(b[1])-Number(a[1]))[0]?.[2] || text.match(/^application:.*\bicon='([^']+\.(?:png|webp|jpe?g|xml))'/m)?.[1] };
 }
 async function tools() {
   const sdk = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT || path.join(os.homedir(), 'Library/Android/sdk');
@@ -32,15 +33,11 @@ async function inspectApk(file) {
   const { stdout: signature } = await run(path.join(toolDir, 'apksigner'), ['verify', '--print-certs', file], { timeout: 45000, maxBuffer: 1024 * 1024 });
   const certificates = [...signature.matchAll(/^Signer #\d+ certificate SHA-256 digest: ([a-fA-F0-9]+)$/gm)].map(m => m[1].toLowerCase()).sort();
   if (!certificates.length) throw new Error('No verified signing certificate found');
-  let icon = null;
-  if (metadata.iconPath) {
-    try {
-      const { stdout: bytes } = await run('/usr/bin/unzip', ['-p', file, metadata.iconPath], { encoding: 'buffer', maxBuffer: 2 * 1024 * 1024, timeout: 10000 });
-      const ext = path.extname(metadata.iconPath).slice(1).replace('jpg', 'jpeg');
-      icon = `data:image/${ext};base64,${bytes.toString('base64')}`;
-    } catch { /* Adaptive/vector icons get an initial-based fallback in the UI. */ }
-  }
+  let icon = null; let iconError = null;
+  try { icon = await extractIcon(file, metadata.iconPath, toolDir); }
+  catch (e) { iconError = e.message; }
+
   delete metadata.iconPath;
-  return { ...metadata, certificates, icon };
+  return { ...metadata, certificates, icon, iconRevision: icon ? ICON_REVISION : 0, iconError };
 }
 module.exports = { inspectApk, parseBadging, tools };

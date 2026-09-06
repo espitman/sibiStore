@@ -1,6 +1,6 @@
 {
   "name": "sibi-store-server",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Your personal Android library, at home on your Mac",
   "author": "Sibi",
@@ -37,15 +37,24 @@
   "build": {
     "appId": "com.sibi.store.server",
     "productName": "Sibi Store",
-    "directories": { "output": "release" },
-    "files": ["dist/**/*", "electron/**/*", "server/**/*", "package.json"],
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "server/**/*",
+      "package.json"
+    ],
     "mac": {
       "identity": "-",
       "icon": "assets/sibi.icns",
       "category": "public.app-category.utilities",
       "extendInfo": {
         "NSLocalNetworkUsageDescription": "Sibi Store shares your APK library with your phone and TV on your home network.",
-        "NSBonjourServices": ["_sibistore._tcp"]
+        "NSBonjourServices": [
+          "_sibistore._tcp"
+        ]
       }
     }
   }

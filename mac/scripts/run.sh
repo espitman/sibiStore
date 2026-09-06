@@ -5,9 +5,10 @@ cd "$SCRIPT_DIR/.."
 source "$SCRIPT_DIR/env.sh"
 if [[ ! -d node_modules ]]; then bash "$SCRIPT_DIR/setup.sh"; fi
 case "${1:-dev}" in
+  stop-installed) shift; osascript -e 'if application id "com.sibi.store.server" is running then tell application id "com.sibi.store.server" to quit' "$@" ;;
   installed) shift; open '/Applications/Sibi Store.app' --args "$@" ;;
   dev) shift || true; npm run dev -- "$@" ;;
   app) shift; bash "$SCRIPT_DIR/build.sh"; npm start -- "$@" ;;
   preview) shift; bash "$SCRIPT_DIR/build.sh"; npm start -- --design-preview "$@" ;;
-  *) echo 'Usage: run.sh [dev|app|preview|installed]'; exit 2 ;;
+  *) echo 'Usage: run.sh [dev|app|preview|installed|stop-installed]'; exit 2 ;;
 esac

@@ -6,6 +6,7 @@ const { EventEmitter } = require('node:events');
 const initSqlJs = require('sql.js');
 const chokidar = require('chokidar');
 const { inspectApk } = require('./apk.cjs');
+const { ICON_REVISION } = require('./icons.cjs');
 
 async function hashFile(file) {
   const hash = crypto.createHash('sha256');
@@ -53,7 +54,19 @@ class Library extends EventEmitter {
         try {
           const before = await fs.stat(file);
           const sha256 = await hashFile(file);
-          if (this.versions.some(v => v.sha256 === sha256)) continue;
+          const existing = this.versions.find(v => v.sha256 === sha256);
+          if (existing) {
+            if (!existing.icon && existing.iconRevision !== ICON_REVISION) {
+              const meta = await this.inspect(file);
+              if (meta.icon) {
+                // Repair presentation metadata without changing pinned APK identity.
+                existing.icon = meta.icon; existing.iconRevision = ICON_REVISION; existing.iconError = null;
+                this.db.run('UPDATE versions SET metadata = ? WHERE sha = ?', [JSON.stringify(existing),sha256]);
+                await this.persist(); this.emit('change');
+              } else if (meta.iconError) this.errors.push({file:path.basename(file),message:`Icon: ${meta.iconError}`});
+            }
+            continue;
+          }
           temporary = path.join(this.dataDir, 'artifacts', `${crypto.randomUUID()}.partial`);
           await fs.copyFile(file, temporary);
           const after = await fs.stat(file);
