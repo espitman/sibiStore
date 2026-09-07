@@ -11,10 +11,12 @@ The spatial UI has independent hand and controller pointers. Runtime multimodal 
 - `bash vr/scripts/setup-meta.sh` fetches and verifies the pinned Meta package from its official registry. It is embedded locally and excluded from Git.
 - `bash vr/scripts/bridge.sh` builds and exports Android libraries.
 - `bash vr/scripts/prepare.sh` generates the scene and XR settings.
+- `bash vr/scripts/verify-config.sh` verifies the persisted OpenXR configuration in a fresh Editor process.
 - `bash vr/scripts/test.sh` runs Editor pointer lifecycle tests.
 - `bash vr/scripts/visual-check.sh` renders offline Editor fixtures for layout inspection; fixtures are excluded from the Android player.
 - `bash vr/scripts/setup-android.sh 'ndk;27.2.12479018'` installs the exact NDK required by this Editor. Builds reuse the Android SDK and require Java 17 (`SIBI_VR_JDK` can select an existing JDK).
 - `bash vr/scripts/release.sh` builds/signs the APK and replaces `sibi-store-vr.apk` on Desktop. It does not publish to the Mac library.
+- `bash vr/scripts/verify-apk.sh` checks signing, alignment, manifest metadata, ARM64 libraries, bridge retention, and ZIP integrity.
 - `bash vr/scripts/run.sh` opens the project.
 
 The Unity package registry uses Unity's official `.cn` mirror because the `.com` endpoint returns HTTP 403 on the development network. Meta comes directly from `npm.developer.oculus.com`. No signing keys or personal paths are stored in the project.

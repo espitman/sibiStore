@@ -7,6 +7,7 @@ if [[ $# -gt 0 ]]; then shift; fi
 SIBI_TOOLS="$(ls -d "$ANDROID_HOME"/build-tools/* | sort | tail -1)"
 "$SIBI_TOOLS/apksigner" verify --verbose "$@" "$SIBI_APK"
 "$SIBI_TOOLS/zipalign" -c -P 16 4 "$SIBI_APK"
+"$SIBI_TOOLS/aapt2" dump badging "$SIBI_APK"
 SIBI_XML="$(mktemp "${TMPDIR:-/tmp}/sibi-vr-manifest.XXXXXX")"
 trap 'rm -f -- "$SIBI_XML"' EXIT
 "$SIBI_TOOLS/aapt2" dump xmltree --file AndroidManifest.xml "$SIBI_APK" > "$SIBI_XML"

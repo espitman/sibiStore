@@ -32,18 +32,27 @@ public static class SibiBuild {
         // OpenXR's Input System and the store's explicit pointer adapter coexist.
         var settings=new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/ProjectSettings.asset")[0]);
         var input=settings.FindProperty("activeInputHandler");if(input!=null){input.intValue=2;settings.ApplyModifiedPropertiesWithoutUndo();}
-        if(XRGeneralSettingsPerBuildTarget.XRGeneralSettingsForBuildTarget(BuildTargetGroup.Android)==null){
-            var general=ScriptableObject.CreateInstance<XRGeneralSettings>();
-            var manager=ScriptableObject.CreateInstance<XRManagerSettings>();
-            Directory.CreateDirectory("Assets/XR");AssetDatabase.CreateAsset(general,"Assets/XR/AndroidXRSettings.asset");AssetDatabase.AddObjectToAsset(manager,general);general.Manager=manager;
-            if(!EditorBuildSettings.TryGetConfigObject(XRGeneralSettings.k_SettingsKey,out XRGeneralSettingsPerBuildTarget perTarget)) {
-                perTarget=ScriptableObject.CreateInstance<XRGeneralSettingsPerBuildTarget>();
-                AssetDatabase.CreateAsset(perTarget,"Assets/XR/PerTargetSettings.asset");
-                EditorBuildSettings.AddConfigObject(XRGeneralSettings.k_SettingsKey,perTarget,true);
-            }
-            perTarget.SetSettingsForBuildTarget(BuildTargetGroup.Android,general);
+        Directory.CreateDirectory("Assets/XR");
+        if(!EditorBuildSettings.TryGetConfigObject(XRGeneralSettings.k_SettingsKey,out XRGeneralSettingsPerBuildTarget perTarget)) {
+            perTarget=AssetDatabase.LoadAssetAtPath<XRGeneralSettingsPerBuildTarget>("Assets/XR/PerTargetSettings.asset");
+            if(perTarget==null){perTarget=ScriptableObject.CreateInstance<XRGeneralSettingsPerBuildTarget>();AssetDatabase.CreateAsset(perTarget,"Assets/XR/PerTargetSettings.asset");}
+            EditorBuildSettings.AddConfigObject(XRGeneralSettings.k_SettingsKey,perTarget,true);
         }
-        var xr=XRGeneralSettingsPerBuildTarget.XRGeneralSettingsForBuildTarget(BuildTargetGroup.Android);
+        var xr=perTarget.SettingsForBuildTarget(BuildTargetGroup.Android);
+        if(xr==null){
+            xr=ScriptableObject.CreateInstance<XRGeneralSettings>();xr.name="Android Settings";
+            AssetDatabase.AddObjectToAsset(xr,perTarget);
+            perTarget.SetSettingsForBuildTarget(BuildTargetGroup.Android,xr);
+        }
+        if(xr.Manager==null){
+            var manager=ScriptableObject.CreateInstance<XRManagerSettings>();manager.name="Android XR Manager";
+            AssetDatabase.AddObjectToAsset(manager,perTarget);xr.Manager=manager;
+        }
+        EditorUtility.SetDirty(perTarget);EditorUtility.SetDirty(xr);EditorUtility.SetDirty(xr.Manager);
+        // General settings must be sub-assets: XR Management migrates standalone
+        // general-settings assets on reload, which otherwise loses the mapping.
+        PlayerSettings.SetPreloadedAssets(PlayerSettings.GetPreloadedAssets().Where(a=>a!=null && (!(a is XRGeneralSettings) || a==xr)).ToArray());
+        if(AssetDatabase.LoadMainAssetAtPath("Assets/XR/AndroidXRSettings.asset")!=null)AssetDatabase.DeleteAsset("Assets/XR/AndroidXRSettings.asset");
         xr.InitManagerOnStart=true;
         if(!XRPackageMetadataStore.AssignLoader(xr.Manager,"UnityEngine.XR.OpenXR.OpenXRLoader",BuildTargetGroup.Android))throw new Exception("Could not configure OpenXR loader");
         UnityEditor.XR.OpenXR.Features.FeatureHelpers.RefreshFeatures(BuildTargetGroup.Android);
@@ -51,8 +60,9 @@ public static class SibiBuild {
         bool meta=false;
         foreach(var feature in openxr.GetFeatures<UnityEngine.XR.OpenXR.Features.OpenXRFeature>()){
             var name=feature.GetType().FullName;
-            if(name=="Meta.XR.MetaXRFeature" || name.EndsWith("OculusTouchControllerProfile") || name.EndsWith("MetaQuestTouchPlusControllerProfile")){feature.enabled=true;if(name=="Meta.XR.MetaXRFeature")meta=true;}
+            if(name=="Meta.XR.MetaXRFeature" || name.EndsWith("OculusTouchControllerProfile") || name.EndsWith("MetaQuestTouchPlusControllerProfile")){feature.enabled=true;EditorUtility.SetDirty(feature);if(name=="Meta.XR.MetaXRFeature")meta=true;}
         }
+        EditorUtility.SetDirty(openxr);
         if(!meta)throw new Exception("Meta XR OpenXR feature was not registered");
         var config=OVRProjectConfig.CachedProjectConfig;
         config.handTrackingSupport=OVRProjectConfig.HandTrackingSupport.ControllersAndHands;
@@ -74,6 +84,13 @@ public static class SibiBuild {
         if(devAgent!=null){var local=new SerializedObject(devAgent);var enabled=local.FindProperty("enabled");if(enabled!=null)enabled.boolValue=false;var token=local.FindProperty("accessToken");if(token!=null)token.stringValue="";var address=local.FindProperty("serverAddress");if(address!=null)address.stringValue="127.0.0.1";local.ApplyModifiedPropertiesWithoutUndo();}
         AssetDatabase.SaveAssets();
         Debug.Log("Sibi Store VR: OpenXR, Meta XR, ARM64, hands and controllers configured.");
+    }
+    public static void VerifyConfiguration() {
+        var xr=XRGeneralSettingsPerBuildTarget.XRGeneralSettingsForBuildTarget(BuildTargetGroup.Android);
+        if(xr==null || !xr.InitManagerOnStart || xr.Manager==null || !xr.Manager.activeLoaders.Any(l=>l.GetType().FullName=="UnityEngine.XR.OpenXR.OpenXRLoader"))throw new Exception("Persisted Android OpenXR loader is missing");
+        var settings=OpenXRSettings.GetSettingsForBuildTargetGroup(BuildTargetGroup.Android);
+        if(!settings.GetFeatures<UnityEngine.XR.OpenXR.Features.OpenXRFeature>().Any(f=>f.GetType().FullName=="Meta.XR.MetaXRFeature" && f.enabled))throw new Exception("Persisted Meta XR feature is disabled");
+        Debug.Log("Persisted Android OpenXR configuration verified after reload.");
     }
     public static void Build() {
         Prepare();

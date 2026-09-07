@@ -89,9 +89,10 @@ verify_installation() {
     source "$SCRIPT_DIR/../../mobile/scripts/env.sh"
     bash "$SCRIPT_DIR/setup-android.sh" 'ndk;27.2.12479018'
     if [[ ! -e "$android/SDK" && -d "$ANDROID_HOME" ]]; then ln -s "$ANDROID_HOME" "$android/SDK"; fi
-    if [[ ! -e "$android/OpenJDK" && -x "$JAVA_HOME/bin/javac" ]]; then ln -s "$JAVA_HOME" "$android/OpenJDK"; fi
+    local jdk17="${SIBI_VR_JDK:-$HOME/Library/Java/JavaVirtualMachines/openjdk-17.jdk/Contents/Home}"
+    if [[ -x "$jdk17/bin/javac" && ( ! -e "$android/OpenJDK" || -L "$android/OpenJDK" ) ]]; then ln -sfn "$jdk17" "$android/OpenJDK"; fi
     local ndk="$ANDROID_HOME/ndk/27.2.12479018"
-    if [[ ! -e "$android/NDK" && -d "$ndk" ]]; then ln -s "$ndk" "$android/NDK"; fi
+    if [[ -d "$ndk" && ( ! -e "$android/NDK" || -L "$android/NDK" ) ]]; then ln -sfn "$ndk" "$android/NDK"; fi
     [[ -d "$android/SDK" ]] || { echo "Unity Android SDK is missing." >&2; exit 1; }
     [[ -d "$android/NDK" ]] || { echo "Unity Android NDK is missing." >&2; exit 1; }
     [[ -d "$android/OpenJDK" ]] || { echo "Unity OpenJDK is missing." >&2; exit 1; }
