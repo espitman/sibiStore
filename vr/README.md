@@ -6,6 +6,8 @@ The spatial UI has independent hand and controller pointers. Runtime multimodal 
 
 Hold the title bar using pinch or controller trigger to move the window; release to place it. While holding it, the controller thumbstick adjusts distance. Recenter places the panel along the current gaze. The Android quality profiles use 4x MSAA, with increased text density and eye-buffer resolution for the flat UI. The client uses an explicit network security configuration permitting the home-LAN HTTP server.
 
+Hold **Rotate** and aim up/down or left/right to adjust pitch/yaw without moving the panel center. Move and rotation share one owner and cancel on tracking loss. Button focus uses a shared outline for all pointers; the fill has no hover/press color tween. This prevents competing color transitions but does not by itself establish the cause of headset-visible surface shimmer.
+
 ## Development
 
 - `bash vr/scripts/setup-unity.sh` installs Unity Hub, the pinned ARM64 Editor, and Android modules.

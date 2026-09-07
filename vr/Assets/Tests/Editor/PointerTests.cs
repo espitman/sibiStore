@@ -78,4 +78,36 @@ public class PointerTests {
         handle.Move(-1,new Ray(Vector3.right,Vector3.forward));Assert.That(adapter.canvas.transform.position,Is.EqualTo(before+Vector3.right));
         handle.End(-1);Assert.That(handle.IsHeld,Is.False);
     }
+    [Test] public void RotationKeepsCenterAndClampsYawAndPitch(){
+        var handle=root.AddComponent<PanelGrabHandle>();handle.Initialize(adapter.canvas.transform,PanelManipulationMode.Rotate,20,10);
+        var before=adapter.canvas.transform.position;
+        Assert.That(handle.TryBegin(-1,new Ray(Vector3.zero,Vector3.forward)),Is.True);
+        handle.Move(-1,new Ray(Vector3.zero,Quaternion.Euler(-30,45,0)*Vector3.forward));
+        Assert.That(Vector3.Distance(adapter.canvas.transform.position,before),Is.LessThan(.0001f));
+        var forward=adapter.canvas.transform.forward;
+        Assert.That(Vector3.Angle(Vector3.ProjectOnPlane(forward,Vector3.up),Vector3.forward),Is.EqualTo(20).Within(.1f));
+        Assert.That(Mathf.Asin(forward.y)*Mathf.Rad2Deg,Is.EqualTo(10).Within(.1f));
+    }
+    [Test] public void MoveAndRotateHandlesSharePanelOwnership(){
+        var move=root.AddComponent<PanelGrabHandle>();move.Initialize(adapter.canvas.transform);
+        var rotate=root.AddComponent<PanelGrabHandle>();rotate.Initialize(adapter.canvas.transform,PanelManipulationMode.Rotate);
+        var ray=new Ray(Vector3.zero,Vector3.forward);
+        Assert.That(move.TryBegin(-1,ray),Is.True);
+        Assert.That(rotate.TryBegin(-2,ray),Is.False);
+        rotate.End(-1);Assert.That(move.IsHeld,Is.True);
+        move.End(-1);Assert.That(rotate.TryBegin(-2,ray),Is.True);
+    }
+    [Test] public void TrackingLossCancelsRotationAndRequiresRelease(){
+        var handle=adapter.canvas.transform.Find("Button").gameObject.AddComponent<PanelGrabHandle>();
+        handle.Initialize(adapter.canvas.transform,PanelManipulationMode.Rotate);adapter.windowHandle=handle;
+        Tick(left,true,true);Assert.That(handle.IsHeld,Is.True);
+        source.rotation=Quaternion.Euler(0,20,0);Tick(left,true,true);
+        var rotated=adapter.canvas.transform.rotation;Assert.That(Quaternion.Angle(Quaternion.identity,rotated),Is.GreaterThan(1));
+        Tick(left,false,true);Assert.That(handle.IsHeld,Is.False);
+        Tick(left,true,true);Assert.That(handle.IsHeld,Is.False);
+        Assert.That(Quaternion.Angle(adapter.canvas.transform.rotation,rotated),Is.LessThan(.01f));
+        source.rotation=Quaternion.LookRotation(adapter.canvas.transform.position-source.position);
+        Canvas.ForceUpdateCanvases();adapter.eye.Render();
+        Tick(left,true,false);Tick(left,true,true);Assert.That(handle.IsHeld,Is.True);
+    }
 }

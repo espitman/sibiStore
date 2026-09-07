@@ -60,7 +60,7 @@ public sealed class SpatialPointers : MonoBehaviour {
             p.ray.enabled=true;p.ray.SetPosition(0,source.position);p.ray.SetPosition(1,captured.GrabPoint);
             return;
         }
-        if(windowHandle!=null && windowHandle.IsHeld){Cancel(p);p.awaitRelease=true;p.ray.enabled=false;return;}
+        if(PanelGrabHandle.IsPanelHeld(canvas.transform)){Cancel(p);p.awaitRelease=true;p.ray.enabled=false;return;}
         var plane = new Plane(canvas.transform.forward, canvas.transform.position);
         bool intersects = plane.Raycast(ray, out var distance) && distance > 0 && distance < 8;
         var point = ray.GetPoint(intersects ? distance : 2);
