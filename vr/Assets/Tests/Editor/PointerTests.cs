@@ -34,6 +34,20 @@ public class PointerTests {
         Tick(left,true,true);source.rotation=Quaternion.Euler(0,60,0);Tick(left,true,false);Assert.That(clicks,Is.Zero);
         source.rotation=Quaternion.identity;Tick(left,true,false);Tick(left,true,true);Tick(left,true,false);Assert.That(clicks,Is.EqualTo(1));
     }
+    [Test] public void HandsSuppressControllersAcrossBriefTrackingLoss(){
+        var select=typeof(SpatialPointers).GetMethod("PreferHands",BindingFlags.Instance|BindingFlags.NonPublic);
+        bool Hands(bool tracked,float time)=>(bool)select.Invoke(adapter,new object[]{tracked,time});
+        Assert.That(Hands(false,0),Is.False);
+        Tick(left,true,true);
+        Assert.That(Hands(true,1),Is.True);
+        Tick(left,false,true); // Switching mode cancels the controller press.
+        Assert.That(Hands(false,1.2f),Is.True);
+        Assert.That(Hands(false,1.6f),Is.False);
+        Tick(left,true,true);Tick(left,true,false);
+        Assert.That(clicks,Is.Zero);
+        Tick(left,true,true);Tick(left,true,false);
+        Assert.That(clicks,Is.EqualTo(1));
+    }
     [Test] public void LostTrackingRequiresReleaseBeforeNewPress(){
         Tick(left,true,true);Tick(left,false,true);Tick(left,true,true);Tick(left,true,false);Assert.That(clicks,Is.Zero);
         Tick(left,true,true);Tick(left,true,false);Assert.That(clicks,Is.EqualTo(1));

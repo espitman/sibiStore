@@ -16,6 +16,7 @@ public sealed class SpatialPointers : MonoBehaviour {
     public bool HasInteraction => System.Array.Exists(pointers, p => p.held);
     readonly List<RaycastResult> hits = new List<RaycastResult>();
     float nextEnable; bool multimodalEnabled;
+    float handsLastTracked = float.NegativeInfinity;
     readonly Dictionary<GameObject,int> owners = new Dictionary<GameObject,int>();
     sealed class Pointer {
         public readonly int id;
@@ -35,11 +36,18 @@ public sealed class SpatialPointers : MonoBehaviour {
         bool lc = OVRInput.GetControllerPositionTracked(OVRInput.Controller.LTouch);
         bool rc = OVRInput.GetControllerPositionTracked(OVRInput.Controller.RTouch);
         bool lh = Valid(leftHand), rh = Valid(rightHand);
+        // A brief tracking dropout must not wake controllers lying nearby.
+        bool handsActive = PreferHands((leftHand != null && leftHand.IsTracked) || (rightHand != null && rightHand.IsTracked), Time.unscaledTime);
+        lc &= !handsActive; rc &= !handsActive;
         Feed(pointers[0], leftController, lc, OVRInput.Get(OVRInput.Axis1D.PrimaryIndexTrigger, OVRInput.Controller.LTouch) > .65f, OVRInput.Get(OVRInput.Axis2D.PrimaryThumbstick, OVRInput.Controller.LTouch).y);
         Feed(pointers[1], rightController, rc, OVRInput.Get(OVRInput.Axis1D.PrimaryIndexTrigger, OVRInput.Controller.RTouch) > .65f, OVRInput.Get(OVRInput.Axis2D.PrimaryThumbstick, OVRInput.Controller.RTouch).y);
         Feed(pointers[2], leftHand != null ? leftHand.PointerPose : null, lh, lh && leftHand.GetFingerIsPinching(OVRHand.HandFinger.Index), 0);
         Feed(pointers[3], rightHand != null ? rightHand.PointerPose : null, rh, rh && rightHand.GetFingerIsPinching(OVRHand.HandFinger.Index), 0);
-        Status = (multimodalEnabled ? "Multimodal active  •  " : "Multimodal unavailable  •  ") + $"Hands: {(lh ? "L " : "")}{(rh ? "R" : "")}{(!lh && !rh ? "not tracked" : "")}   •   Controllers: {(lc ? "L " : "")}{(rc ? "R" : "")}{(!lc && !rc ? "not tracked" : "")}";
+        Status = handsActive ? "Hand input • Controllers inactive" : $"Controller input • {(lc ? "L " : "")}{(rc ? "R" : "")}{(!lc && !rc ? "not tracked" : "")}";
+    }
+    bool PreferHands(bool tracked,float now){
+        if(tracked)handsLastTracked=now;
+        return tracked || now-handsLastTracked<.5f;
     }
     static bool Valid(OVRHand h) => h != null && h.IsTracked && h.IsDataHighConfidence && h.IsPointerPoseValid && !h.IsSystemGestureInProgress;
     void Feed(Pointer p, Transform source, bool tracked, bool down, float scroll) {

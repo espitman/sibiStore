@@ -68,7 +68,8 @@ public sealed class StoreApp : MonoBehaviour {
         var handle=Image(root.transform,"Move window",0,0,1200,94,Card).gameObject.AddComponent<PanelGrabHandle>();handle.Initialize(root.transform);
         Label(root.transform,"Hold title bar to move",305,39,280,34,18,Muted);
         Label(root.transform,"sibi",32,25,150,56,40,Color.white); Label(root.transform,"store / VR",120,34,220,46,27,Gold);
-        connection=Label(root.transform,"Finding your Mac…",600,36,560,40,20,Muted);
+        connection=Label(root.transform,"Finding your Mac…",600,36,390,40,20,Muted);
+        Button(root.transform,"Exit",1020,22,150,52,Exit,false);
         string[] pages={"Library","Downloads","Connect Mac","Settings"};
         for(int i=0;i<pages.Length;i++){string name=pages[i];Button(root.transform,name,24,130+i*82,190,64,()=>{page=name;selected="";keyboard="";Render();});}
         Button(root.transform,"Recenter",24,626,190,64,Recenter);
@@ -108,6 +109,14 @@ public sealed class StoreApp : MonoBehaviour {
         }catch(Exception e){notice.text="Store error: "+e.Message;}
     }
     void Send(string command,string value=""){bridge?.Call("command",command,value);}
+    void Exit(){
+#if UNITY_EDITOR
+        notice.text="Exit closes Sibi Store on the headset.";
+#else
+        bridge?.Call("close");
+        Application.Quit();
+#endif
+    }
     void Render(bool preserveScroll=false){
         var position=activeScroll!=null?activeScroll.content.anchoredPosition:Vector2.zero;activeScroll=null;
         RenderBody();
