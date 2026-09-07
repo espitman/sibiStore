@@ -10,6 +10,13 @@ const os = require('node:os');
     const page=await client.firstWindow();
     await page.getByRole('heading',{name:'App library'}).waitFor();
     await page.getByRole('heading',{name:'Version history'}).waitFor();
+    if (process.argv[2]) {
+      const metadata = await client.evaluate(async ({ app }, apk) => {
+        return process.mainModule.require(`${app.getAppPath()}/server/apk.cjs`).inspectApk(apk);
+      }, path.resolve(process.argv[2]));
+      if (!metadata.certificates?.length || !metadata.packageName) throw new Error('Packaged APK verification failed');
+      console.log(`Packaged native Java verified APK: ${metadata.packageName} ${metadata.versionName}`);
+    }
     console.log('Packaged macOS app launched; bundled SQLite/runtime and IPC are working.');
   } finally {await client.close();await fs.rm(temp,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exitCode=1;});

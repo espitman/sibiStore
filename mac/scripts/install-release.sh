@@ -18,3 +18,4 @@ if ! mv "$SIBI_STAGE/Sibi Store.app" "$SIBI_DESTINATION"; then
   exit 1
 fi
 echo "Installed: $SIBI_DESTINATION"
+rm -rf -- "$SIBI_STAGE"

@@ -18,4 +18,4 @@ if ! mv "$SIBI_STAGE/Sibi Store.app" "$SIBI_DESTINATION"; then
   exit 1
 fi
 echo "Desktop application: $SIBI_DESTINATION"
-if [[ -d "$SIBI_STAGE/previous.app" ]]; then echo "Previous Desktop app retained at: $SIBI_STAGE/previous.app"; else rmdir "$SIBI_STAGE"; fi
+rm -rf -- "$SIBI_STAGE"

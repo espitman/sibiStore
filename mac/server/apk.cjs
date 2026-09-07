@@ -5,6 +5,7 @@ const path = require('node:path');
 const os = require('node:os');
 const run = promisify(execFile);
 const { extractIcon, ICON_REVISION } = require('./icons.cjs');
+const { signerCommand } = require('./java.cjs');
 
 function parseBadging(text) {
   const pkg = text.match(/^package: name='([^']+)' versionCode='(\d+)' versionName='([^']*)'/m);
@@ -30,7 +31,8 @@ async function inspectApk(file) {
   const toolDir = await tools();
   const { stdout } = await run(path.join(toolDir, 'aapt2'), ['dump', 'badging', file], { timeout: 45000, maxBuffer: 8 * 1024 * 1024 });
   const metadata = parseBadging(stdout);
-  const { stdout: signature } = await run(path.join(toolDir, 'apksigner'), ['verify', '--print-certs', file], { timeout: 45000, maxBuffer: 1024 * 1024 });
+  const signer = await signerCommand(toolDir);
+  const { stdout: signature } = await run(signer.file, [...signer.args, 'verify', '--print-certs', file], { timeout: 45000, maxBuffer: 1024 * 1024 });
   const certificates = [...signature.matchAll(/^Signer #\d+ certificate SHA-256 digest: ([a-fA-F0-9]+)$/gm)].map(m => m[1].toLowerCase()).sort();
   if (!certificates.length) throw new Error('No verified signing certificate found');
   let icon = null; let iconError = null;
