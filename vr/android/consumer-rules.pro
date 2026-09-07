@@ -1,0 +1,2 @@
+-keep class com.sibi.store.vr.StoreBridge { public *; }
+-keep class com.sibi.store.core.InstallResultReceiver { *; }

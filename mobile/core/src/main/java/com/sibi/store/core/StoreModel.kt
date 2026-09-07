@@ -26,10 +26,10 @@ import java.util.concurrent.TimeUnit
 data class StoreState(val apps: List<StoreApp> = emptyList(), val installed: Map<String,Installed> = emptyMap(), val hosts: List<Host> = emptyList(),
     val deleteAfterInstall: Boolean = true, val downloadUsage: DownloadUsage = DownloadUsage(), val clearingDownloads: Boolean = false,
     val host: Host? = null, val connected: Boolean = false, val loading: Boolean = false, val error: String? = null, val message: String? = null, val downloads: Map<String,Download> = emptyMap())
-class StoreModel(application: Application) : AndroidViewModel(application) {
+class StoreModel @JvmOverloads constructor(application: Application, vrClientOverride: Boolean? = null) : AndroidViewModel(application) {
     private val context = application
     private val tvClient = context.resources.getBoolean(R.bool.sibi_tv_client)
-    private val vrClient = context.resources.getBoolean(R.bool.sibi_vr_client)
+    private val vrClient = vrClientOverride ?: context.resources.getBoolean(R.bool.sibi_vr_client)
     private val platform = if (vrClient) "vr" else if (tvClient) "tv" else "phone"
     private val prefs = context.getSharedPreferences("sibi",Context.MODE_PRIVATE)
     private val cache = File(context.filesDir,"catalog.json")

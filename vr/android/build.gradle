@@ -1,0 +1,31 @@
+plugins { id 'com.android.library'; id 'org.jetbrains.kotlin.android' }
+android {
+    namespace 'com.sibi.store.vr'
+    compileSdk 35
+    defaultConfig { minSdk 29; consumerProguardFiles 'consumer-rules.pro' }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+    kotlinOptions { jvmTarget = '17' }
+}
+dependencies { implementation project(':core'); implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0' }
+configurations { unityExport }
+afterEvaluate {
+    configurations.releaseRuntimeClasspath.attributes.keySet().each { key ->
+        configurations.unityExport.attributes.attribute(key, configurations.releaseRuntimeClasspath.attributes.getAttribute(key))
+    }
+    [project(':core').configurations.api, project(':core').configurations.implementation, configurations.implementation].each { config ->
+        config.allDependencies.findAll { it instanceof ExternalModuleDependency }.each { dependencies.add('unityExport', it.copy()) }
+    }
+}
+tasks.register('exportUnityLibraries') {
+    dependsOn 'assembleRelease', ':core:assembleRelease'
+    doLast {
+        def destination = rootProject.file('../vr/Assets/Plugins/Android/Libraries')
+        delete destination
+        copy {
+            from layout.buildDirectory.file('outputs/aar/vrbridge-release.aar')
+            from project(':core').layout.buildDirectory.file('outputs/aar/core-release.aar')
+            from configurations.unityExport
+            into destination
+        }
+    }
+}

@@ -1,0 +1,1 @@
+{"name":"Sibi.Store.VR.Tests","references":["Sibi.Store.VR","Oculus.VR","Unity.ugui"],"includePlatforms":["Editor"],"optionalUnityReferences":["TestAssemblies"],"autoReferenced":false}

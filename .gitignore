@@ -13,3 +13,16 @@
 **/*.aab
 **/.env
 mac/assets/sibi.iconset/
+vr/Library/
+vr/Temp/
+vr/Logs/
+vr/obj/
+vr/UserSettings/
+vr/Assets/Plugins/Android/Libraries/
+vr/Assets/Plugins/Android/Libraries.meta
+vr/Builds/
+vr/Packages/com.meta.xr.sdk.core/
+vr/Packages/.meta-stage.*/
+# Meta editor-generated local tool settings contain machine addresses and tokens.
+vr/Assets/Resources/DevAgentSettings.asset*
+vr/Assets/Resources/OVRPlatformToolSettings.asset*

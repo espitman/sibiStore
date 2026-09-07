@@ -4,3 +4,5 @@ rootProject.name = 'SibiStoreAndroid'
 include ':core', ':app', ':tv'
 include ':fixture'
 project(':tv').projectDir = file('../tv/app')
+include ':vrbridge'
+project(':vrbridge').projectDir = file('../vr/android')

@@ -1,0 +1,5 @@
+<linker>
+  <assembly fullname="Oculus.VR">
+    <type fullname="OVRHand" preserve="all" />
+  </assembly>
+</linker>

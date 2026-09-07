@@ -1,0 +1,36 @@
+{
+  "scopedRegistries": [
+    {
+      "name": "Meta",
+      "url": "https://npm.developer.oculus.com/",
+      "scopes": [
+        "com.meta.xr"
+      ]
+    },
+    {
+      "name": "Unity official mirror",
+      "url": "https://packages.unity.cn",
+      "scopes": [
+        "com.unity"
+      ]
+    }
+  ],
+  "dependencies": {
+    "com.meta.xr.sdk.core": "205.0.0",
+    "com.unity.xr.openxr": "1.16.1",
+    "com.unity.xr.management": "4.5.3",
+    "com.unity.ugui": "2.0.0",
+    "com.unity.test-framework": "1.4.6",
+    "com.unity.modules.androidjni": "1.0.0",
+    "com.unity.modules.jsonserialize": "1.0.0",
+    "com.unity.modules.imageconversion": "1.0.0",
+    "com.unity.modules.unitywebrequest": "1.0.0",
+    "com.unity.modules.animation": "1.0.0",
+    "com.unity.modules.assetbundle": "1.0.0",
+    "com.unity.modules.physics": "1.0.0",
+    "com.unity.modules.physics2d": "1.0.0",
+    "com.unity.modules.terrain": "1.0.0",
+    "com.unity.modules.video": "1.0.0",
+    "com.unity.modules.particlesystem": "1.0.0"
+  }
+}
