@@ -1,6 +1,6 @@
 {
   "name": "sibi-store-server",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "private": true,
   "description": "Your personal Android library, at home on your Mac",
   "author": "Sibi",
@@ -51,7 +51,7 @@
       "icon": "assets/sibi.icns",
       "category": "public.app-category.utilities",
       "extendInfo": {
-        "NSLocalNetworkUsageDescription": "Sibi Store shares your APK library with your phone and TV on your home network.",
+        "NSLocalNetworkUsageDescription": "Sibi Store shares your APK library with your phone, TV, and VR headset on your home network.",
         "NSBonjourServices": [
           "_sibistore._tcp"
         ]

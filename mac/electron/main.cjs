@@ -45,6 +45,7 @@ else app.whenReady().then(async () => {
   await startServer();
   ipcMain.handle('snapshot', snapshot);
   ipcMain.handle('rescan', async () => { await library.scan(); return snapshot(); });
+  ipcMain.handle('set-platform-override', async (_, hash, platform) => { await library.setPlatformOverride(hash, platform); return snapshot(); });
   ipcMain.handle('open-folder', () => shell.openPath(config.folder));
   ipcMain.handle('reveal', (_, hash) => { const v = library.versions.find(v => v.sha256 === hash); if (v?.artifact) shell.showItemInFolder(v.artifact); });
   ipcMain.handle('choose-folder', async () => {

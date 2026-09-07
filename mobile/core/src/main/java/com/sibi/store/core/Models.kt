@@ -5,11 +5,14 @@ import org.json.JSONArray
 
 data class Release(val packageName: String, val title: String, val versionCode: Long, val versionName: String,
     val size: Long, val minSdk: Int, val abis: List<String>, val tv: Boolean, val sha256: String,
-    val certificates: List<String>, val downloadUrl: String, val addedAt: String, val filename: String)
+    val certificates: List<String>, val downloadUrl: String, val addedAt: String, val filename: String,
+    val vr: Boolean = false)
 data class StoreApp(val packageName: String, val title: String, val icon: String?, val versions: List<Release>)
 /** Partition releases before compatibility/update selection, including cached catalogs. */
-fun catalogForClient(apps: List<StoreApp>, tvClient: Boolean): List<StoreApp> = apps.mapNotNull { app ->
-    val versions = app.versions.filter { it.tv == tvClient }
+fun catalogForClient(apps: List<StoreApp>, tvClient: Boolean, vrClient: Boolean = false): List<StoreApp> = apps.mapNotNull { app ->
+    val versions = app.versions.filter { release ->
+        if (vrClient) release.vr else !release.vr && release.tv == tvClient
+    }
     if (versions.isEmpty()) null else app.copy(versions = versions)
 }
 data class Host(val name: String, val url: String, val id: String = "")
@@ -38,7 +41,8 @@ fun parseCatalog(raw: String): Pair<String, List<StoreApp>> {
                 val v = versions.getJSONObject(i)
                 Release(app.getString("packageName"), app.getString("title"), v.getString("versionCode").toLong(), v.getString("versionName"),
                     v.getLong("size"), v.getInt("minSdk"), v.getJSONArray("abis").strings(), v.optBoolean("tv"),
-                    v.getString("sha256"), v.getJSONArray("certificates").strings(), v.getString("downloadUrl"), v.getString("addedAt"), v.getString("filename"))
+                    v.getString("sha256"), v.getJSONArray("certificates").strings(), v.getString("downloadUrl"), v.getString("addedAt"), v.getString("filename"),
+                    v.optBoolean("vr"))
             })
     }
 }

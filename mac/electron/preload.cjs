@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('sibi', {
   snapshot: () => ipcRenderer.invoke('snapshot'),
   rescan: () => ipcRenderer.invoke('rescan'),
+  setPlatformOverride: (hash, platform) => ipcRenderer.invoke('set-platform-override', hash, platform),
   openFolder: () => ipcRenderer.invoke('open-folder'),
   reveal: hash => ipcRenderer.invoke('reveal', hash),
   chooseFolder: () => ipcRenderer.invoke('choose-folder'),

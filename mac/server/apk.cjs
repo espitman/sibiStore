@@ -6,6 +6,28 @@ const os = require('node:os');
 const run = promisify(execFile);
 const { extractIcon, ICON_REVISION } = require('./icons.cjs');
 const { signerCommand } = require('./java.cjs');
+const CLASSIFICATION_REVISION = 1;
+
+function parseManifestVr(text) {
+  const stack = [];
+  for (const line of text.split(/\r?\n/)) {
+    const element = /^(\s*)E:\s+([^\s(]+)/.exec(line);
+    if (element) {
+      const indent = element[1].length;
+      while (stack.length && stack.at(-1).indent >= indent) stack.pop();
+      stack.push({ indent, name: element[2] });
+      continue;
+    }
+    const attribute = /^(\s*)A:\s+(.+?)=(?:"([^"]*)"|([^\s]+))/.exec(line);
+    if (!attribute || !stack.length) continue;
+    const key = attribute[2].replace(/\(0x[0-9a-f]+\)$/i, '').split(':').at(-1);
+    const value = attribute[3] ?? attribute[4];
+    const owner = stack.at(-1).name;
+    if (key === 'name' && owner === 'category' && value === 'com.oculus.intent.category.VR') return true;
+    if (key === 'name' && owner === 'meta-data' && value === 'com.oculus.supportedDevices') return true;
+  }
+  return false;
+}
 
 function parseBadging(text) {
   const pkg = text.match(/^package: name='([^']+)' versionCode='(\d+)' versionName='([^']*)'/m);
@@ -32,7 +54,10 @@ async function inspectApk(file) {
   const { stdout } = await run(path.join(toolDir, 'aapt2'), ['dump', 'badging', file], { timeout: 45000, maxBuffer: 8 * 1024 * 1024 });
   const metadata = parseBadging(stdout);
   const signer = await signerCommand(toolDir);
-  const { stdout: signature } = await run(signer.file, [...signer.args, 'verify', '--print-certs', file], { timeout: 45000, maxBuffer: 1024 * 1024 });
+  const [{ stdout: signature }, { stdout: manifest }] = await Promise.all([
+    run(signer.file, [...signer.args, 'verify', '--print-certs', file], { timeout: 45000, maxBuffer: 1024 * 1024 }),
+    run(path.join(toolDir, 'aapt2'), ['dump', 'xmltree', file, '--file', 'AndroidManifest.xml'], { timeout: 45000, maxBuffer: 8 * 1024 * 1024 })
+  ]);
   const certificates = [...signature.matchAll(/^Signer #\d+ certificate SHA-256 digest: ([a-fA-F0-9]+)$/gm)].map(m => m[1].toLowerCase()).sort();
   if (!certificates.length) throw new Error('No verified signing certificate found');
   let icon = null; let iconError = null;
@@ -40,6 +65,6 @@ async function inspectApk(file) {
   catch (e) { iconError = e.message; }
 
   delete metadata.iconPath;
-  return { ...metadata, certificates, icon, iconRevision: icon ? ICON_REVISION : 0, iconError };
+  return { ...metadata, vr: parseManifestVr(manifest), classificationRevision: CLASSIFICATION_REVISION, certificates, icon, iconRevision: icon ? ICON_REVISION : 0, iconError };
 }
-module.exports = { inspectApk, parseBadging, tools };
+module.exports = { inspectApk, parseBadging, parseManifestVr, tools, CLASSIFICATION_REVISION };

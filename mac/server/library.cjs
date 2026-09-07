@@ -5,7 +5,7 @@ const crypto = require('node:crypto');
 const { EventEmitter } = require('node:events');
 const initSqlJs = require('sql.js');
 const chokidar = require('chokidar');
-const { inspectApk } = require('./apk.cjs');
+const { inspectApk, CLASSIFICATION_REVISION } = require('./apk.cjs');
 const { ICON_REVISION } = require('./icons.cjs');
 
 async function hashFile(file) {
@@ -18,6 +18,7 @@ class Library extends EventEmitter {
   constructor({ folder, dataDir, inspect = inspectApk }) {
     super(); Object.assign(this, { folder, dataDir, inspect });
     this.versions = []; this.errors = []; this.scanning = false; this.lastScan = null;
+    this.persistQueue = Promise.resolve();
   }
   async init() {
     await fs.mkdir(this.folder, { recursive: true });
@@ -29,6 +30,8 @@ class Library extends EventEmitter {
     const rows = this.db.exec('SELECT metadata FROM versions')[0]?.values || [];
     this.versions = rows.map(r => JSON.parse(r[0]));
     this.db.run('CREATE TABLE IF NOT EXISTS signers (package TEXT PRIMARY KEY, certificates TEXT NOT NULL)');
+    this.db.run("CREATE TABLE IF NOT EXISTS platform_overrides (sha TEXT PRIMARY KEY, platform TEXT NOT NULL CHECK(platform IN ('phone', 'tv', 'vr')))");
+    this.platformOverrides = new Map((this.db.exec('SELECT sha, platform FROM platform_overrides')[0]?.values || []).map(([sha, platform]) => [sha, platform]));
     for (const v of this.versions) this.db.run('INSERT OR IGNORE INTO signers VALUES (?, ?)', [v.packageName,JSON.stringify(v.certificates)]);
     await this.scan();
     await this.removeLegacyCopies();
@@ -66,7 +69,10 @@ class Library extends EventEmitter {
           if (next.some(v => v.sha256 === sha256)) continue;
           const existing = previous.get(sha256);
           let meta = existing;
-          if (!meta || (!meta.icon && meta.iconRevision !== ICON_REVISION)) meta = {...meta,...await this.inspect(file)};
+          if (!meta || (!meta.icon && meta.iconRevision !== ICON_REVISION) || meta.classificationRevision !== CLASSIFICATION_REVISION) {
+            const inspected = await this.inspect(file);
+            meta = {...meta,...inspected,vr:!!inspected.vr,classificationRevision:CLASSIFICATION_REVISION};
+          }
           const after = await fs.stat(file);
           if (before.size !== after.size || before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs || (!existing && await hashFile(file) !== sha256)) {
             throw new Error('File is still changing. It will be checked again after copying finishes.');
@@ -107,15 +113,43 @@ class Library extends EventEmitter {
     }
     await fs.rmdir(legacy).catch(e=>{if(e.code!=='ENOTEMPTY') throw e;});
   }
-  async persist() {
-    await fs.writeFile(`${this.dbPath}.tmp`, Buffer.from(this.db.export()));
+  async writeDatabase(snapshot) {
+    await fs.writeFile(`${this.dbPath}.tmp`, snapshot);
     await fs.rename(`${this.dbPath}.tmp`, this.dbPath);
   }
-  catalog() {
+  persist() {
+    const pending = this.persistQueue.catch(() => {}).then(() => this.writeDatabase(Buffer.from(this.db.export())));
+    this.persistQueue = pending;
+    return pending;
+  }
+  platform(v) {
+    return this.platformOverrides.get(v.sha256) || (v.vr ? 'vr' : v.tv ? 'tv' : 'phone');
+  }
+  async setPlatformOverride(sha, platform) {
+    if (typeof sha !== 'string' || !/^[a-f0-9]{64}$/.test(sha)) throw new Error('Invalid APK release hash');
+    if (!this.versions.some(v => v.sha256 === sha)) throw new Error('APK release not found');
+    if (!['auto','phone','tv','vr'].includes(platform)) throw new Error('Invalid platform override');
+    if (platform === 'auto') {
+      this.db.run('DELETE FROM platform_overrides WHERE sha = ?', [sha]);
+      this.platformOverrides.delete(sha);
+    } else {
+      this.db.run('INSERT OR REPLACE INTO platform_overrides VALUES (?, ?)', [sha,platform]);
+      this.platformOverrides.set(sha,platform);
+    }
+    await this.persist();
+    this.emit('change');
+  }
+  catalog(platform = 'all') {
     const grouped = new Map();
     for (const { artifact, ...v } of this.versions) {
+      const override = this.platformOverrides.get(v.sha256);
+      const effectivePlatform = override || (v.vr ? 'vr' : v.tv ? 'tv' : 'phone');
+      if (platform !== 'all' && platform !== effectivePlatform && !(platform === 'legacy' && effectivePlatform !== 'vr')) continue;
       if (!grouped.has(v.packageName)) grouped.set(v.packageName, []);
-      grouped.get(v.packageName).push(v);
+      grouped.get(v.packageName).push({...v,
+        tv: override ? effectivePlatform === 'tv' : !!v.tv,
+        vr: override ? effectivePlatform === 'vr' : !!v.vr,
+        platform:effectivePlatform,platformOverride:override || 'auto'});
     }
     return [...grouped].map(([packageName, versions]) => {
       versions.sort((a,b) => compareCodes(a.versionCode,b.versionCode));
@@ -123,6 +157,14 @@ class Library extends EventEmitter {
     }).sort((a,b) => a.title.localeCompare(b.title));
   }
   snapshot() { return { apps: this.catalog(), folder: this.folder, errors: this.errors, scanning: this.scanning, lastScan: this.lastScan }; }
-  async close() { clearTimeout(this.debounce); await this.watcher?.close(); await this.scanPromise; this.db?.close(); }
+  async close() {
+    clearTimeout(this.debounce);
+    let failure;
+    try { await this.watcher?.close(); } catch (e) { failure = e; }
+    try { await this.scanPromise; } catch (e) { failure ||= e; }
+    try { await this.persistQueue; } catch (e) { failure ||= e; }
+    try { this.db?.close(); } catch (e) { failure ||= e; }
+    if (failure) throw failure;
+  }
 }
 module.exports = { Library, hashFile, compareCodes };

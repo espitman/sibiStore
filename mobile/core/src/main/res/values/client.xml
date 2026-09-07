@@ -1,3 +1,4 @@
 <resources>
     <bool name="sibi_tv_client">false</bool>
+    <bool name="sibi_vr_client">false</bool>
 </resources>

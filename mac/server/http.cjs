@@ -20,8 +20,13 @@ async function createServer({ library, serverId, port = 8743, host = '0.0.0.0', 
   const transfers = []; let bonjour, service, nativeDiscovery;
   server.get('/api/v1/info', async () => ({ protocolVersion: 1, serverId, name: `Sibi Store — ${os.hostname()}`, port }));
   server.get('/api/v1/catalog', async (request, reply) => {
-    const catalog = { protocolVersion: 1, serverId, apps: library.catalog() };
-    const etag = `"${crypto.createHash('sha256').update(JSON.stringify(catalog)).digest('hex')}"`;
+    const requested = request.query?.platform;
+    if (requested !== undefined && (typeof requested !== 'string' || !['all','phone','tv','vr'].includes(requested))) {
+      return reply.code(400).send({ error: 'platform must be one of: all, phone, tv, vr' });
+    }
+    const scope = requested || 'legacy';
+    const catalog = { protocolVersion: 1, serverId, apps: library.catalog(scope) };
+    const etag = `"${crypto.createHash('sha256').update(`${scope}\0${JSON.stringify(catalog)}`).digest('hex')}"`;
     reply.header('ETag', etag).header('Cache-Control', 'no-cache');
     if (request.headers['if-none-match'] === etag) return reply.code(304).send();
     return catalog;
