@@ -7,5 +7,8 @@
         android:name="android.hardware.touchscreen"
         android:required="false" />
 
-    <application android:supportsRtl="false" />
+    <application
+        android:networkSecurityConfig="@xml/sibi_store_network_security_config"
+        android:supportsRtl="false"
+        android:usesCleartextTraffic="true" />
 </manifest>

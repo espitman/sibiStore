@@ -56,4 +56,26 @@ public class PointerTests {
         Tick(right,true,false);Assert.That(secondClicks,Is.EqualTo(1));Assert.That(clicks,Is.Zero);
         source.rotation=Quaternion.LookRotation(new Vector3(-.5f,0,2));Tick(left,true,false);Assert.That(clicks,Is.EqualTo(1));
     }
+    [Test] public void WindowGrabContinuesOutsideBoundsAndTrackingLossReleasesIt(){
+        var handle=adapter.canvas.transform.Find("Button").gameObject.AddComponent<PanelGrabHandle>();
+        handle.Initialize(adapter.canvas.transform);adapter.windowHandle=handle;
+        var before=adapter.canvas.transform.position;
+        Tick(left,true,true);Assert.That(handle.IsHeld,Is.True);
+        Tick(left,true,true);Assert.That(Vector3.Distance(before,adapter.canvas.transform.position),Is.LessThan(.001f));
+        source.rotation=Quaternion.Euler(0,60,0);Tick(left,true,true);
+        Assert.That(Vector3.Distance(before,adapter.canvas.transform.position),Is.GreaterThan(1));
+        var moved=adapter.canvas.transform.position;
+        Tick(right,true,true);Assert.That(adapter.canvas.transform.position,Is.EqualTo(moved));
+        Tick(left,false,true);Assert.That(handle.IsHeld,Is.False);Assert.That(clicks,Is.Zero);
+        Tick(left,true,true);Assert.That(handle.IsHeld,Is.False);
+    }
+    [Test] public void OnlyTheOwnerCanMoveOrReleaseWindow(){
+        var handle=root.AddComponent<PanelGrabHandle>();handle.Initialize(adapter.canvas.transform);
+        var ray=new Ray(Vector3.zero,Vector3.forward);var before=adapter.canvas.transform.position;
+        Assert.That(handle.TryBegin(-1,ray),Is.True);Assert.That(handle.TryBegin(-2,ray),Is.False);
+        handle.Move(-2,new Ray(Vector3.right,Vector3.forward));handle.End(-2);
+        Assert.That(handle.IsHeld,Is.True);Assert.That(adapter.canvas.transform.position,Is.EqualTo(before));
+        handle.Move(-1,new Ray(Vector3.right,Vector3.forward));Assert.That(adapter.canvas.transform.position,Is.EqualTo(before+Vector3.right));
+        handle.End(-1);Assert.That(handle.IsHeld,Is.False);
+    }
 }

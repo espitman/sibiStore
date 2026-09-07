@@ -10,6 +10,7 @@ public sealed class SpatialPointers : MonoBehaviour {
     public Camera eye;
     public Transform leftController, rightController;
     public OVRHand leftHand, rightHand;
+    public PanelGrabHandle windowHandle;
     public string Status { get; private set; } = "Starting hand and controller tracking…";
     readonly Pointer[] pointers = { new Pointer(-101), new Pointer(-102), new Pointer(-103), new Pointer(-104) };
     public bool HasInteraction => System.Array.Exists(pointers, p => p.held);
@@ -22,6 +23,7 @@ public sealed class SpatialPointers : MonoBehaviour {
         public bool held;
         public bool awaitRelease = true;
         public LineRenderer ray;
+        public PanelGrabHandle grab;
         public Pointer(int id) { this.id = id; }
     }
     void Update() {
@@ -51,6 +53,14 @@ public sealed class SpatialPointers : MonoBehaviour {
         if (!tracked || source == null) { Cancel(p); p.awaitRelease = true; p.ray.enabled = false; return; }
         if (p.awaitRelease) { if (!down) p.awaitRelease = false; down = false; }
         var ray = new Ray(source.position, source.forward);
+        if(p.grab!=null){
+            var captured=p.grab;
+            if(down)p.grab.Move(p.id,ray,Mathf.Abs(scroll)>.18f?scroll*Time.unscaledDeltaTime*.8f:0);
+            else {p.grab.End(p.id);p.grab=null;p.held=false;}
+            p.ray.enabled=true;p.ray.SetPosition(0,source.position);p.ray.SetPosition(1,captured.GrabPoint);
+            return;
+        }
+        if(windowHandle!=null && windowHandle.IsHeld){Cancel(p);p.awaitRelease=true;p.ray.enabled=false;return;}
         var plane = new Plane(canvas.transform.forward, canvas.transform.position);
         bool intersects = plane.Raycast(ray, out var distance) && distance > 0 && distance < 8;
         var point = ray.GetPoint(intersects ? distance : 2);
@@ -67,6 +77,12 @@ public sealed class SpatialPointers : MonoBehaviour {
             if (target != null) ExecuteEvents.ExecuteHierarchy(target, d, ExecuteEvents.pointerEnterHandler);
         }
         if (down && !p.held) {
+            var handle=target!=null?target.GetComponentInParent<PanelGrabHandle>():null;
+            if(handle!=null){
+                Cancel(p);
+                if(handle.TryBegin(p.id,ray))p.grab=handle;
+                p.held=true;return;
+            }
             d.pressPosition = screen; d.pointerPressRaycast = d.pointerCurrentRaycast; d.eligibleForClick = target != null; d.useDragThreshold = true;
             var press = ExecuteEvents.GetEventHandler<IPointerDownHandler>(target) ?? ExecuteEvents.GetEventHandler<IPointerClickHandler>(target);
             if (press != null && owners.TryGetValue(press,out var owner) && owner != p.id) { p.held = down; return; }
@@ -102,6 +118,7 @@ public sealed class SpatialPointers : MonoBehaviour {
         foreach (var key in keys) owners.Remove(key);
     }
     void Cancel(Pointer p) {
+        if(p.grab!=null){p.grab.End(p.id);p.grab=null;}
         ReleaseOwnership(p);
         var d = p.data; if (d == null) return;
         if (d.pointerPress != null) ExecuteEvents.Execute(d.pointerPress,d,ExecuteEvents.pointerUpHandler);

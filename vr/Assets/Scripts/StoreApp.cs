@@ -19,17 +19,22 @@ public sealed class StoreApp : MonoBehaviour {
     Font font; Canvas canvas; RectTransform body; Text connection, status, notice;
     StoreSnapshot state = new StoreSnapshot(); SpatialPointers pointers; OVRCameraRig rig; ScrollRect activeScroll;
     string page = "Library", query = "", selected = "", keyboard = "", typed = "", previous = "";
-    bool confirmClear; float nextPoll; AndroidJavaObject bridge;
+    bool confirmClear, initialPlacement=true; bool? reportedConnection; float nextPoll; AndroidJavaObject bridge;
     readonly Dictionary<string,Texture2D> icons = new Dictionary<string,Texture2D>();
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)] static void Bootstrap() {
         if (FindFirstObjectByType<StoreApp>() == null) new GameObject("Sibi Store VR").AddComponent<StoreApp>();
     }
     void Start() {
+        QualitySettings.antiAliasing=4;
+        UnityEngine.XR.XRSettings.eyeTextureResolutionScale=1.15f;
         font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         new GameObject("Event System",typeof(EventSystem));
         var cameraObject = new GameObject("Quest rig"); cameraObject.transform.SetParent(transform);
         rig = cameraObject.AddComponent<OVRCameraRig>();
         var manager = cameraObject.AddComponent<OVRManager>(); manager.isInsightPassthroughEnabled = false; manager.launchSimultaneousHandsControllersOnStartup = true; manager.SimultaneousHandsAndControllersEnabled = true;
+        manager.enableDynamicResolution=false;
+        OVRManager.useDynamicFoveatedRendering=false;OVRManager.foveatedRenderingLevel=OVRManager.FoveatedRenderingLevel.Off;
+        foreach(var camera in rig.GetComponentsInChildren<Camera>()){camera.allowMSAA=true;camera.allowHDR=false;}
         rig.centerEyeAnchor.GetComponent<Camera>().clearFlags = CameraClearFlags.SolidColor;
         rig.centerEyeAnchor.GetComponent<Camera>().backgroundColor = new Color(.012f,.014f,.022f);
         var left = new GameObject("Left tracked hand"); left.transform.SetParent(rig.leftHandAnchor,false);
@@ -39,18 +44,29 @@ public sealed class StoreApp : MonoBehaviour {
         // Configure the serialized hand type before Awake runs.
         ConfigureHand(lh, false); ConfigureHand(rh,true); left.SetActive(true); right.SetActive(true);
         BuildPanel(rig.centerEyeAnchor.GetComponent<Camera>());
-        pointers=gameObject.AddComponent<SpatialPointers>();pointers.canvas=canvas;pointers.eye=canvas.worldCamera;pointers.leftController=rig.leftControllerAnchor;pointers.rightController=rig.rightControllerAnchor;pointers.leftHand=lh;pointers.rightHand=rh;
-        Recenter(); Render();
+        pointers=gameObject.AddComponent<SpatialPointers>();pointers.canvas=canvas;pointers.eye=canvas.worldCamera;pointers.leftController=rig.leftControllerAnchor;pointers.rightController=rig.rightControllerAnchor;pointers.leftHand=lh;pointers.rightHand=rh;pointers.windowHandle=canvas.GetComponentInChildren<PanelGrabHandle>();
+        Recenter(); Render();StartCoroutine(ReportRendering());
 #if UNITY_ANDROID && !UNITY_EDITOR
         try { using(var player=new AndroidJavaClass("com.unity3d.player.UnityPlayer")) using(var activity=player.GetStatic<AndroidJavaObject>("currentActivity")) bridge=new AndroidJavaObject("com.sibi.store.vr.StoreBridge",activity); }
         catch(Exception e){ notice.text="Could not start Android store: "+e.Message; }
 #endif
     }
+    System.Collections.IEnumerator ReportRendering(){
+        yield return new WaitForSecondsRealtime(2);
+        var displays=new List<UnityEngine.XR.XRDisplaySubsystem>();SubsystemManager.GetSubsystems(displays);
+        foreach(var display in displays)if(display.running && display.GetRenderPassCount()>0){
+            display.GetRenderPass(0,out var pass);
+            Debug.Log($"Sibi VR render: MSAA={pass.renderTargetDesc.msaaSamples}, target={pass.renderTargetDesc.width}x{pass.renderTargetDesc.height}, scale={UnityEngine.XR.XRSettings.eyeTextureResolutionScale}");
+        }
+    }
     void BuildPanel(Camera eye) {
         var root = new GameObject("Store panel",typeof(RectTransform),typeof(Canvas),typeof(GraphicRaycaster)); root.transform.SetParent(transform);
         canvas = root.GetComponent<Canvas>(); canvas.renderMode=RenderMode.WorldSpace; canvas.worldCamera=eye;
         root.GetComponent<RectTransform>().sizeDelta=new Vector2(1200,800); root.transform.localScale=Vector3.one*.0015f;
+        var scaler=root.AddComponent<CanvasScaler>();scaler.dynamicPixelsPerUnit=2;
         Image(root.transform,"Background",0,0,1200,800,Ink);
+        var handle=Image(root.transform,"Move window",0,0,1200,94,Card).gameObject.AddComponent<PanelGrabHandle>();handle.Initialize(root.transform);
+        Label(root.transform,"Hold title bar to move",305,39,280,34,18,Muted);
         Label(root.transform,"sibi",32,25,150,56,40,Color.white); Label(root.transform,"store / VR",120,34,220,46,27,Gold);
         connection=Label(root.transform,"Finding your Mac…",600,36,560,40,20,Muted);
         string[] pages={"Library","Downloads","Connect Mac","Settings"};
@@ -75,12 +91,14 @@ public sealed class StoreApp : MonoBehaviour {
         field.SetValue(hand,right ? OVRHand.Hand.HandRight : OVRHand.Hand.HandLeft);
         typeof(OVRHand).GetField("_pointerPoseRoot",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance)?.SetValue(hand,rig.trackingSpace);
     }
-    void Recenter(){if(canvas==null || rig==null)return;var eye=rig.centerEyeAnchor;var forward=Vector3.ProjectOnPlane(eye.forward,Vector3.up).normalized;if(forward.sqrMagnitude<.1f)forward=Vector3.forward;canvas.transform.position=eye.position+forward*1.65f;canvas.transform.rotation=Quaternion.LookRotation(forward,Vector3.up);}
+    void Recenter(){if(canvas==null || rig==null)return;var eye=rig.centerEyeAnchor;var forward=eye.forward.normalized;if(Mathf.Abs(Vector3.Dot(forward,Vector3.up))>.92f)forward=Vector3.ProjectOnPlane(forward,Vector3.up).normalized;if(forward.sqrMagnitude<.1f)forward=Vector3.forward;canvas.transform.position=eye.position+forward*1.65f;canvas.transform.rotation=Quaternion.LookRotation(forward,Vector3.up);}
+    void LateUpdate(){if(initialPlacement && rig!=null && OVRManager.isHmdPresent && Time.frameCount>2){Recenter();initialPlacement=false;}}
     void Update(){
         if(status!=null && pointers!=null)status.text=pointers.Status;
         if(Time.unscaledTime<nextPoll)return;nextPoll=Time.unscaledTime+.35f;
         if(bridge==null)return;
         try{var json=bridge.Call<string>("snapshot");if(json==previous)return;state=JsonUtility.FromJson<StoreSnapshot>(json);if(state.schemaVersion!=1)throw new Exception("Unsupported store data version");
+            if(reportedConnection!=state.connected){Debug.Log("Sibi Store connected="+state.connected);reportedConnection=state.connected;}
             connection.text=state.connected?"●  "+(state.host?.name??"Mac connected"):"○  Mac offline";
             notice.text=state.error??state.message??"";
             // Keep pressed controls alive through their release/drag sequence.

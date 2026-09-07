@@ -16,7 +16,7 @@ public static class SibiBuild {
     public static void Prepare() {
         PlayerSettings.companyName="Sibi";PlayerSettings.productName="Sibi Store VR";
         PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android,"com.sibi.store.vr");
-        PlayerSettings.bundleVersion="0.1.0";PlayerSettings.Android.bundleVersionCode=1;
+        PlayerSettings.bundleVersion="0.1.1";PlayerSettings.Android.bundleVersionCode=2;
         PlayerSettings.Android.minSdkVersion=AndroidSdkVersions.AndroidApiLevel29;
         PlayerSettings.Android.targetSdkVersion=AndroidSdkVersions.AndroidApiLevel35;
         PlayerSettings.Android.targetArchitectures=AndroidArchitecture.ARM64;
@@ -26,6 +26,10 @@ public static class SibiBuild {
         PlayerSettings.SetUseDefaultGraphicsAPIs(BuildTarget.Android,false);
         PlayerSettings.SetGraphicsAPIs(BuildTarget.Android,new[]{GraphicsDeviceType.Vulkan});
         PlayerSettings.colorSpace=ColorSpace.Linear;
+        var quality=new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/QualitySettings.asset")[0]);
+        var levels=quality.FindProperty("m_QualitySettings");
+        for(int i=0;i<levels.arraySize;i++)levels.GetArrayElementAtIndex(i).FindPropertyRelative("antiAliasing").intValue=4;
+        quality.ApplyModifiedPropertiesWithoutUndo();QualitySettings.antiAliasing=4;
         PlayerSettings.Android.useCustomKeystore=false;
         PlayerSettings.Android.applicationEntry=AndroidApplicationEntry.Activity;
         PlayerSettings.defaultInterfaceOrientation=UIOrientation.LandscapeLeft;

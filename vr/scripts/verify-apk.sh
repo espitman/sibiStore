@@ -9,13 +9,31 @@ SIBI_TOOLS="$(ls -d "$ANDROID_HOME"/build-tools/* | sort | tail -1)"
 "$SIBI_TOOLS/zipalign" -c -P 16 4 "$SIBI_APK"
 "$SIBI_TOOLS/aapt2" dump badging "$SIBI_APK"
 SIBI_XML="$(mktemp "${TMPDIR:-/tmp}/sibi-vr-manifest.XXXXXX")"
-trap 'rm -f -- "$SIBI_XML"' EXIT
+SIBI_RESOURCES="$(mktemp "${TMPDIR:-/tmp}/sibi-vr-resources.XXXXXX")"
+SIBI_NETWORK_XML="$(mktemp "${TMPDIR:-/tmp}/sibi-vr-network.XXXXXX")"
+trap 'rm -f -- "$SIBI_XML" "$SIBI_RESOURCES" "$SIBI_NETWORK_XML"' EXIT
 "$SIBI_TOOLS/aapt2" dump xmltree --file AndroidManifest.xml "$SIBI_APK" > "$SIBI_XML"
-python3 - "$SIBI_APK" "$SIBI_XML" <<'PY'
-import hashlib,sys,zipfile
+"$SIBI_TOOLS/aapt2" dump resources "$SIBI_APK" > "$SIBI_RESOURCES"
+read -r SIBI_NETWORK_ID SIBI_NETWORK_PATH < <(python3 - "$SIBI_RESOURCES" <<'PY'
+import re,sys
+resources=open(sys.argv[1]).read()
+match=re.search(r'resource (0x[0-9a-f]+) xml/sibi_store_network_security_config\n\s+\(\) \(file\) (\S+) type=XML', resources)
+assert match, 'Compiled Sibi Store network security config is missing'
+print(match.group(1),match.group(2))
+PY
+)
+"$SIBI_TOOLS/aapt2" dump xmltree --file "$SIBI_NETWORK_PATH" "$SIBI_APK" > "$SIBI_NETWORK_XML"
+python3 - "$SIBI_APK" "$SIBI_XML" "$SIBI_NETWORK_XML" "$SIBI_NETWORK_ID" <<'PY'
+import hashlib,re,sys,zipfile
 manifest=open(sys.argv[2]).read()
+assert not re.search(r'android:debuggable[^\n]*=(?:true|0xffffffff)', manifest), 'Refusing a debuggable APK; Quest installs must use Release'
 for required in ['com.sibi.store.vr','com.unity3d.player.UnityPlayerActivity','com.oculus.intent.category.VR','com.oculus.permission.HAND_TRACKING','com.oculus.supportedDevices','quest3','android.permission.REQUEST_INSTALL_PACKAGES','com.sibi.store.core.InstallResultReceiver']:
     assert required in manifest, 'Missing manifest entry: '+required
+assert re.search(r'android:usesCleartextTraffic[^\n]*=true', manifest), 'LAN HTTP cleartext traffic is not enabled'
+network_id=sys.argv[4]
+assert re.search(r'android:networkSecurityConfig[^\n]*@'+re.escape(network_id)+r'\b', manifest), 'Sibi Store network security config is not selected'
+network_config=open(sys.argv[3]).read()
+assert re.search(r'cleartextTrafficPermitted[^\n]*=true', network_config), 'Sibi Store network security config blocks LAN HTTP'
 with zipfile.ZipFile(sys.argv[1]) as z:
     assert z.testzip() is None, 'APK ZIP integrity failure'
     names=z.namelist()
@@ -27,6 +45,6 @@ with zipfile.ZipFile(sys.argv[1]) as z:
 h=hashlib.sha256()
 with open(sys.argv[1],'rb') as f:
     for b in iter(lambda:f.read(1048576),b''):h.update(b)
-print('Quest manifest, ARM64, bridge, ZIP integrity and signing verified.')
+print('Quest manifest, LAN HTTP policy, ARM64, bridge, ZIP integrity and signing verified.')
 print('SHA-256:',h.hexdigest())
 PY
