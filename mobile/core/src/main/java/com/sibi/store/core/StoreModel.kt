@@ -23,17 +23,21 @@ import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.TimeUnit
 
-data class StoreState(val apps: List<StoreApp> = emptyList(), val installed: Map<String,Installed> = emptyMap(), val hosts: List<Host> = emptyList(),
+data class StoreState(val catalog: String = "", val apps: List<StoreApp> = emptyList(), val installed: Map<String,Installed> = emptyMap(), val hosts: List<Host> = emptyList(),
     val deleteAfterInstall: Boolean = true, val downloadUsage: DownloadUsage = DownloadUsage(), val clearingDownloads: Boolean = false,
     val host: Host? = null, val connected: Boolean = false, val loading: Boolean = false, val error: String? = null, val message: String? = null, val downloads: Map<String,Download> = emptyMap())
 class StoreModel @JvmOverloads constructor(application: Application, vrClientOverride: Boolean? = null) : AndroidViewModel(application) {
     private val context = application
     private val tvClient = context.resources.getBoolean(R.bool.sibi_tv_client)
     private val vrClient = vrClientOverride ?: context.resources.getBoolean(R.bool.sibi_vr_client)
-    private val platform = if (vrClient) "vr" else if (tvClient) "tv" else "phone"
+    private var platform = if (vrClient) "vr" else if (tvClient) "tv" else "phone"
     private val prefs = context.getSharedPreferences("sibi",Context.MODE_PRIVATE)
-    private val cache = File(context.filesDir,"catalog.json")
-    private val _state = MutableStateFlow(StoreState(deleteAfterInstall = autoDeleteDownloads(context), host = prefs.getString("url",null)?.let { Host(prefs.getString("hostName","My Mac")!!,it,prefs.getString("serverId","")!!) }))
+    private val cache get() = File(context.filesDir, if (vrClient) "catalog-$platform.json" else "catalog.json")
+    private var cacheJob: Job? = null
+    private val knownDownloadReleases = mutableMapOf<String, Release>()
+    fun releaseForDownload(hash: String): Release? = _state.value.apps.flatMap { it.versions }.find { it.sha256 == hash } ?: knownDownloadReleases[hash]
+    private fun filterCatalog(apps: List<StoreApp>) = catalogForClient(apps, platform == "tv", platform == "vr")
+    private val _state = MutableStateFlow(StoreState(catalog=platform, deleteAfterInstall = autoDeleteDownloads(context), host = prefs.getString("url",null)?.let { Host(prefs.getString("hostName","My Mac")!!,it,prefs.getString("serverId","")!!) }))
     val state = _state.asStateFlow()
     private val client = OkHttpClient.Builder().connectTimeout(5,TimeUnit.SECONDS).readTimeout(15,TimeUnit.SECONDS).build()
     private val work = WorkManager.getInstance(context)
@@ -44,7 +48,7 @@ class StoreModel @JvmOverloads constructor(application: Application, vrClientOve
         val downloads = infos.orEmpty().groupBy { it.tags.firstOrNull { tag -> tag.startsWith("hash:") }?.removePrefix("hash:") ?: "" }.mapNotNull { (hash, tasks) ->
             if(hash.isEmpty() || hash in prefs.getStringSet("cancelledDownloads",emptySet())!!) return@mapNotNull null
             val active = tasks.firstOrNull { !it.state.isFinished } ?: tasks.firstOrNull { it.state == WorkInfo.State.SUCCEEDED } ?: tasks.first()
-            val release = _state.value.apps.flatMap { it.versions }.find { it.sha256 == hash }
+            val release = releaseForDownload(hash)
             val file = downloadFile(context,hash)
             if (active.state.isFinished && !file.exists() && !downloadFile(context,hash,".part").exists()) return@mapNotNull null
             val status = when { file.exists() -> "ready"; active.state == WorkInfo.State.RUNNING -> "downloading"; active.state == WorkInfo.State.ENQUEUED || active.state == WorkInfo.State.BLOCKED -> "queued"; active.state == WorkInfo.State.CANCELLED -> "paused"; active.state == WorkInfo.State.FAILED -> "failed"; else -> "queued" }
@@ -92,10 +96,26 @@ class StoreModel @JvmOverloads constructor(application: Application, vrClientOve
         if (saved != null && saved.id.isNotEmpty() && saved.id == host.id && (! _state.value.connected || saved.url != host.url)) connect(host)
     } },{ error -> _state.update { if(it.connected) it else it.copy(error=error) } })
     init {
-        viewModelScope.launch(Dispatchers.IO) {
-            runCatching { catalogForClient(parseCatalog(cache.readText()).second,tvClient,vrClient) }.onSuccess { apps -> _state.update { it.copy(apps=apps) }; refreshInstalled() }
-        }
+        loadCachedCatalog()
         workLive.observeForever(observer)
+    }
+    private fun loadCachedCatalog() {
+        cacheJob?.cancel()
+        val file = cache
+        cacheJob = viewModelScope.launch {
+            val apps = withContext(Dispatchers.IO) { runCatching { parseCatalog(file.readText()).let { (id, apps) -> apps.takeIf { id == _state.value.host?.id } } }.getOrNull() }
+            if (apps != null) { _state.update { it.copy(apps=filterCatalog(apps)) }; refreshInstalled() }
+        }
+    }
+    fun selectHeadsetCatalog(value: String) {
+        require(vrClient && value in listOf("vr", "phone")) { "Unsupported headset catalog" }
+        if (platform == value) return
+        _state.value.apps.flatMap { it.versions }.forEach { knownDownloadReleases[it.sha256] = it }
+        refreshJob?.cancel(); cacheJob?.cancel()
+        platform = value
+        _state.update { it.copy(catalog=value, apps=emptyList(), installed=emptyMap(), loading=false, error=null) }
+        loadCachedCatalog()
+        refresh()
     }
     fun start() {
         discovery.start(); refresh(); refreshInstalled(); readInstallResult()
@@ -139,10 +159,13 @@ class StoreModel @JvmOverloads constructor(application: Application, vrClientOve
     }
     fun refresh() { _state.value.host?.let { connect(it) } }
     private suspend fun fetchCatalog(host: Host) {
-        val raw = withContext(Dispatchers.IO) { client.newCall(Request.Builder().url("${host.url}/api/v1/catalog?platform=$platform").build()).execute().use { require(it.isSuccessful) { "Catalog request failed (${it.code})" }; it.body!!.string() } }
+        val catalogCache = cache
+        val catalogPlatform = platform
+        val raw = withContext(Dispatchers.IO) { client.newCall(Request.Builder().url("${host.url}/api/v1/catalog?platform=$catalogPlatform").build()).execute().use { require(it.isSuccessful) { "Catalog request failed (${it.code})" }; it.body!!.string() } }
         val (id,apps) = parseCatalog(raw); require(id == host.id) { "Server identity does not match" }
-        withContext(Dispatchers.IO) { cache.writeText(raw) }
-        _state.update { it.copy(apps=catalogForClient(apps,tvClient,vrClient),connected=true,error=null) }; refreshInstalled()
+        cacheJob?.cancel()
+        withContext(Dispatchers.IO) { catalogCache.writeText(raw) }
+        _state.update { it.copy(apps=filterCatalog(apps),connected=true,error=null) }; refreshInstalled()
     }
     fun release(app: StoreApp) = newest(app,Build.VERSION.SDK_INT,Build.SUPPORTED_ABIS.toList())
     fun status(app: StoreApp) = availability(release(app),_state.value.installed[app.packageName])

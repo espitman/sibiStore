@@ -12,12 +12,13 @@ namespace Sibi.Store.VR {
 [Serializable] public class StoreEntry { public string packageName, title, icon, availability, versionName; public long versionCode, size; public StoreVersion availableVersion; public StoreVersion[] versions; public StoreDownload download; public StoreAction primaryAction; public StoreAction[] actions; }
 [Serializable] public class StoreStorage { public long bytes; public int files; public string label; public bool clearing; }
 [Serializable] public class StoreSettings { public bool deleteAfterInstall; }
-[Serializable] public class StoreSnapshot { public int schemaVersion; public bool ready, connected, loading; public StoreHost host; public StoreHost[] hosts; public StoreEntry[] apps; public StoreDownload[] downloads; public StoreStorage storage; public StoreSettings settings; public string error, message; }
+[Serializable] public class StoreSnapshot { public string catalog; public int schemaVersion; public bool ready, connected, loading; public StoreHost host; public StoreHost[] hosts; public StoreEntry[] apps; public StoreDownload[] downloads; public StoreStorage storage; public StoreSettings settings; public string error, message; }
 
 public sealed class StoreApp : MonoBehaviour {
     static readonly Color Gold = new Color(1,.757f,.027f), Ink = new Color(.025f,.025f,.03f), Card = new Color(.075f,.075f,.085f), Muted = new Color(.65f,.65f,.69f);
     Font font; Canvas canvas; RectTransform body; Text connection, status, notice;
     StoreSnapshot state = new StoreSnapshot(); SpatialPointers pointers; OVRCameraRig rig; ScrollRect activeScroll;
+    string catalog = "vr";
     string page = "Library", query = "", selected = "", keyboard = "", typed = "", previous = "";
     bool confirmClear, initialPlacement=true; bool? reportedConnection; float nextPoll; AndroidJavaObject bridge;
     readonly Dictionary<string,Texture2D> icons = new Dictionary<string,Texture2D>();
@@ -99,7 +100,7 @@ public sealed class StoreApp : MonoBehaviour {
         if(status!=null && pointers!=null)status.text=pointers.Status;
         if(Time.unscaledTime<nextPoll)return;nextPoll=Time.unscaledTime+.35f;
         if(bridge==null)return;
-        try{var json=bridge.Call<string>("snapshot");if(json==previous)return;state=JsonUtility.FromJson<StoreSnapshot>(json);if(state.schemaVersion!=1)throw new Exception("Unsupported store data version");
+        try{var json=bridge.Call<string>("snapshot");if(json==previous)return;var incoming=JsonUtility.FromJson<StoreSnapshot>(json);if(!string.IsNullOrEmpty(incoming.catalog)&&incoming.catalog!=catalog)return;state=incoming;if(state.schemaVersion!=1)throw new Exception("Unsupported store data version");
             if(reportedConnection!=state.connected){Debug.Log("Sibi Store connected="+state.connected);reportedConnection=state.connected;}
             connection.text=state.connected?"●  "+(state.host?.name??"Mac connected"):"○  Mac offline";
             notice.text=state.error??state.message??"";
@@ -117,6 +118,11 @@ public sealed class StoreApp : MonoBehaviour {
         Application.Quit();
 #endif
     }
+    void SelectCatalog(string value){
+        if(catalog==value)return;
+        catalog=value;selected="";query="";state.apps=Array.Empty<StoreEntry>();
+        Send("catalog",value);Render();
+    }
     void Render(bool preserveScroll=false){
         var position=activeScroll!=null?activeScroll.content.anchoredPosition:Vector2.zero;activeScroll=null;
         RenderBody();
@@ -128,9 +134,11 @@ public sealed class StoreApp : MonoBehaviour {
         Label(body,page=="Library"&&selected!=""?"App details":page,0,0,720,54,32,Color.white);
         if(page=="Library" && selected!=""){Details();return;}
         if(page=="Library"){
+            Button(body,"VR",600,0,146,50,()=>SelectCatalog("vr"),catalog=="vr");
+            Button(body,"Phone",760,0,154,50,()=>SelectCatalog("phone"),catalog=="phone");
             Button(body,string.IsNullOrEmpty(query)?"Search apps":query,0,65,710,58,()=>{keyboard="search";typed=query;Render();});Button(body,"Refresh",730,65,184,58,()=>Send("refresh"));
             var entries=Array.FindAll(state.apps??Array.Empty<StoreEntry>(),a=>(a.title+" "+a.packageName).IndexOf(query,StringComparison.OrdinalIgnoreCase)>=0);
-            if(entries.Length==0){Label(body,state.connected?"No VR apps in your library":"Connect to your Mac",14,185,850,56,28,Color.white);Label(body,state.connected?"Add Quest APKs to the selected folder on your Mac.":"Choose Connect Mac to find your store on this network.",14,250,850,82,22,Muted);return;}
+            if(entries.Length==0){Label(body,state.connected?(catalog=="vr"?"No VR apps in your library":"No phone apps in your library"):"Connect to your Mac",14,185,850,56,28,Color.white);Label(body,state.connected?(catalog=="vr"?"Add Quest APKs to the selected folder on your Mac.":"Add phone APKs to the selected folder on your Mac."):"Choose Connect Mac to find your store on this network.",14,250,850,82,22,Muted);return;}
             var list=Scroll(body,0,145,914,410,entries.Length*116);
             for(int i=0;i<entries.Length;i++){var app=entries[i];int y=i*116;Image(list,"Card",0,y,896,104,Card);AppIcon(list,app,14,y+16);Button(list,app.title,98,y+6,555,51,()=>{selected=app.packageName;Render();},false);Label(list,app.versionName+"  ·  "+Size(app.size),110,y+58,500,31,18,Muted);var a=app.primaryAction;if(a!=null)Button(list,a.label,677,y+21,204,62,()=>Send(a.command,a.value),true,a.enabled);}
         }else if(page=="Connect Mac"){
@@ -151,7 +159,7 @@ public sealed class StoreApp : MonoBehaviour {
         }
     }
     void Details(){var app=Array.Find(state.apps??Array.Empty<StoreEntry>(),a=>a.packageName==selected);if(app==null){selected="";Render();return;}Button(body,"Back",722,0,190,56,()=>{selected="";Render();},false);AppIcon(body,app,8,87);Label(body,app.title,110,80,780,58,32,Color.white);Label(body,app.packageName,110,141,780,38,18,Muted);Label(body,"Version "+app.versionName+"  ·  "+Size(app.size),8,215,890,42,25,Muted);var actions=app.actions??Array.Empty<StoreAction>();for(int i=0;i<actions.Length;i++){var a=actions[i];Button(body,a.label,i*290,280,274,64,()=>Send(a.command,a.value),i==0,a.enabled);}Label(body,"Version history",8,377,800,44,26,Color.white);var versions=app.versions??Array.Empty<StoreVersion>();var list=Scroll(body,0,431,914,130,Math.Max(130,versions.Length*62));for(int i=0;i<versions.Length;i++){var v=versions[i];Label(list,$"{v.name}   ·   {v.sizeLabel}   ·   API {v.minSdk}+",10,i*62,890,52,22,Muted);}}
-    void Keyboard(){Label(body,keyboard=="search"?"Search VR apps":"Mac address",0,0,910,50,30,Color.white);Label(body,typed+"|",8,66,900,62,26,Gold);string[] rows={"1234567890","qwertyuiop","asdfghjkl","zxcvbnm.:-"};for(int r=0;r<rows.Length;r++)for(int c=0;c<rows[r].Length;c++){string key=rows[r][c].ToString();Button(body,key,c*91,150+r*76,80,65,()=>{typed+=key;Render();},false);}Button(body,"Space",0,467,225,68,()=>{typed+=" ";Render();},false);Button(body,"Delete",236,467,218,68,()=>{if(typed.Length>0)typed=typed.Substring(0,typed.Length-1);Render();},false);Button(body,"Cancel",465,467,218,68,()=>{keyboard="";Render();},false);Button(body,"Done",694,467,218,68,()=>{if(keyboard=="search")query=typed;else Send("connect",typed);keyboard="";Render();});}
+    void Keyboard(){Label(body,keyboard=="search"?"Search apps":"Mac address",0,0,910,50,30,Color.white);Label(body,typed+"|",8,66,900,62,26,Gold);string[] rows={"1234567890","qwertyuiop","asdfghjkl","zxcvbnm.:-"};for(int r=0;r<rows.Length;r++)for(int c=0;c<rows[r].Length;c++){string key=rows[r][c].ToString();Button(body,key,c*91,150+r*76,80,65,()=>{typed+=key;Render();},false);}Button(body,"Space",0,467,225,68,()=>{typed+=" ";Render();},false);Button(body,"Delete",236,467,218,68,()=>{if(typed.Length>0)typed=typed.Substring(0,typed.Length-1);Render();},false);Button(body,"Cancel",465,467,218,68,()=>{keyboard="";Render();},false);Button(body,"Done",694,467,218,68,()=>{if(keyboard=="search")query=typed;else Send("connect",typed);keyboard="";Render();});}
     RectTransform Rect(Transform parent,string name,float x,float y,float w,float h){var go=new GameObject(name,typeof(RectTransform));go.transform.SetParent(parent,false);var r=go.GetComponent<RectTransform>();r.anchorMin=r.anchorMax=new Vector2(0,1);r.pivot=new Vector2(0,1);r.anchoredPosition=new Vector2(x,-y);r.sizeDelta=new Vector2(w,h);return r;}
     Image Image(Transform parent,string name,float x,float y,float w,float h,Color color){var r=Rect(parent,name,x,y,w,h);var image=r.gameObject.AddComponent<Image>();image.color=color;return image;}
     Text Label(Transform parent,string text,float x,float y,float w,float h,int size,Color color){var r=Rect(parent,"Label",x,y,w,h);var t=r.gameObject.AddComponent<Text>();t.font=font;t.fontSize=size;t.text=text;t.color=color;t.raycastTarget=false;t.supportRichText=false;t.verticalOverflow=VerticalWrapMode.Truncate;return t;}

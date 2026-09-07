@@ -10,6 +10,8 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
 import com.sibi.store.core.Availability
 import com.sibi.store.core.Download
@@ -102,8 +104,12 @@ class StoreBridge(private val activity: Activity) {
         val ownerStore = ViewModelStore()
         // Unity imports peer AARs: do not depend on their resource merge priority
         // to select the VR catalog instead of the phone default.
-        val store = StoreModel(activity.application, vrClientOverride = true)
-        ownerStore.put(StoreModel::class.java.name, store)
+        val store = ViewModelProvider(ownerStore, object : ViewModelProvider.Factory {
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                require(modelClass == StoreModel::class.java)
+                return modelClass.cast(StoreModel(activity.application, vrClientOverride = true))!!
+            }
+        })[StoreModel::class.java]
         val bridgeScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         model = store
         modelStore = ownerStore
@@ -128,6 +134,7 @@ class StoreBridge(private val activity: Activity) {
             "connect" -> connect(store, value)
             "discover" -> store.discoverAgain()
             "refresh" -> store.refresh()
+            "catalog" -> store.selectHeadsetCatalog(value)
             "download" -> downloadApp(store, value)
             "action" -> performAction(requireApp(store, value))
             "pause" -> store.pause(requireHash(value))
@@ -166,10 +173,8 @@ class StoreBridge(private val activity: Activity) {
     }
 
     private fun resumeDownload(store: StoreModel, hash: String) {
-        val release = store.state.value.apps.asSequence()
-            .flatMap { it.versions.asSequence() }
-            .firstOrNull { it.sha256 == hash }
-            ?: error("This download is no longer in the VR catalog")
+        val release = store.releaseForDownload(hash)
+            ?: error("This download is no longer in the selected catalog")
         store.download(release)
     }
 
@@ -183,7 +188,7 @@ class StoreBridge(private val activity: Activity) {
 
     private fun requireApp(store: StoreModel, packageName: String): StoreApp =
         store.state.value.apps.firstOrNull { it.packageName == packageName }
-            ?: error("This app is no longer in the VR catalog")
+            ?: error("This app is no longer in the selected catalog")
 
     private fun requireRelease(store: StoreModel, packageName: String): Release {
         val app = requireApp(store, packageName)
@@ -211,7 +216,7 @@ class StoreBridge(private val activity: Activity) {
         when {
             status == Availability.SIGNATURE_MISMATCH ->
                 store.report("The available APK signature does not match the installed app")
-            status in listOf(Availability.CURRENT, Availability.NEWER) -> openVrApp(app)
+            status in listOf(Availability.CURRENT, Availability.NEWER) -> openApp(app)
             download?.state == "ready" || downloadFile(activity, release.sha256).exists() -> installRelease(store, release)
             else -> {
                 requestNotificationPermission()
@@ -220,17 +225,17 @@ class StoreBridge(private val activity: Activity) {
         }
     }
 
-    private fun openVrApp(app: StoreApp) {
-        val intent = Intent(Intent.ACTION_MAIN)
-            .addCategory(VR_LAUNCHER_CATEGORY)
-            .setPackage(app.packageName)
+    private fun openApp(app: StoreApp) {
+        val intent = if (model?.release(app)?.vr == true) Intent(Intent.ACTION_MAIN)
+            .addCategory(VR_LAUNCHER_CATEGORY).setPackage(app.packageName)
+        else activity.packageManager.getLaunchIntentForPackage(app.packageName)
         try {
-            require(intent.resolveActivity(activity.packageManager) != null) {
-                "This VR app has no launchable activity"
+            require(intent != null && intent.resolveActivity(activity.packageManager) != null) {
+                "This app has no launchable activity"
             }
             activity.startActivity(intent)
         } catch (error: Exception) {
-            model?.report(error.message ?: "Could not open this VR app")
+            model?.report(error.message ?: "Could not open this app")
         }
     }
 
@@ -326,6 +331,7 @@ class StoreBridge(private val activity: Activity) {
             .put("loading", state.loading)
             .putNullable("host", state.host?.let(::serializeHost))
             .put("hosts", JSONArray().apply { state.hosts.forEach { put(serializeHost(it)) } })
+            .put("catalog", state.catalog)
             .put("apps", apps)
             .put("downloads", downloads)
             .put("storage", JSONObject()
