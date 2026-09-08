@@ -35,6 +35,9 @@ public static class SibiBuild {
         PlayerSettings.defaultInterfaceOrientation=UIOrientation.LandscapeLeft;
         // OpenXR's Input System and the store's explicit pointer adapter coexist.
         var settings=new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/ProjectSettings.asset")[0]);
+        settings.FindProperty("m_ShowUnitySplashScreen").boolValue=false;
+        settings.FindProperty("m_ShowUnitySplashLogo").boolValue=false;
+        settings.ApplyModifiedPropertiesWithoutUndo();
         var input=settings.FindProperty("activeInputHandler");if(input!=null){input.intValue=2;settings.ApplyModifiedPropertiesWithoutUndo();}
         Directory.CreateDirectory("Assets/XR");
         if(!EditorBuildSettings.TryGetConfigObject(XRGeneralSettings.k_SettingsKey,out XRGeneralSettingsPerBuildTarget perTarget)) {
