@@ -11,7 +11,7 @@ require('node:fs').mkdirSync(dataDir, { recursive: true });
 app.setPath('userData', dataDir);
 const configFile = path.join(dataDir, 'settings.json');
 const snapshot = () => ({ ...library.snapshot(), serverId: config.serverId, running: !!http, port: http?.port || config.port,
-  addresses: http?.addresses() || [], transfers: http?.transfers || [], serverError, discoveryError: http?.discoveryError(),
+  addresses: http?.addresses() || [], transfers: http?.transfers || [], devices: http?.devices() || [], serverError, discoveryError: http?.discoveryError(),
   openAtLogin: app.getLoginItemSettings().openAtLogin, sdk: config.sdk || '', preview: demo });
 function notify() { if (win && !win.isDestroyed()) win.webContents.send('state', snapshot()); }
 async function save() { await fs.writeFile(configFile, JSON.stringify(config, null, 2)); }

@@ -4,6 +4,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const os = require('node:os');
+const { Devices } = require('./devices.cjs');
 
 function parseRange(header, size) {
   const m = /^bytes=(\d*)-(\d*)$/.exec(header || '');
@@ -17,6 +18,15 @@ function addresses(port) {
 }
 async function createServer({ library, serverId, port = 8743, host = '0.0.0.0', advertise = true, onChange = () => {} }) {
   const server = Fastify({ logger: false });
+  const devices = new Devices();
+  server.addHook('onResponse', async (request, reply) => {
+    if (request.routeOptions.url === '/api/v1/catalog' && [200, 304].includes(reply.statusCode)) {
+      devices.touch(request); onChange();
+    }
+  });
+  const deviceTimer = setInterval(() => { if (devices.prune()) onChange(); }, 5000);
+  deviceTimer.unref();
+  server.addHook('onClose', async () => { clearInterval(deviceTimer); });
   const transfers = []; let bonjour, service, nativeDiscovery;
   server.get('/api/v1/info', async () => ({ protocolVersion: 1, serverId, name: `Sibi Store — ${os.hostname()}`, port }));
   server.get('/api/v1/catalog', async (request, reply) => {
@@ -95,7 +105,7 @@ async function createServer({ library, serverId, port = 8743, host = '0.0.0.0', 
       }
     } catch (e) { discoveryError = e.message; }
   }
-  return { server, transfers, port: actualPort, addresses: () => addresses(actualPort), discoveryError: () => discoveryError,
+  return { server, transfers, devices: () => devices.snapshot(), port: actualPort, addresses: () => addresses(actualPort), discoveryError: () => discoveryError,
     async close() { await nativeDiscovery?.close(); if (service) await new Promise(resolve => service.stop(resolve)); bonjour?.destroy(); await server.close(); } };
 }
 module.exports = { createServer, parseRange, addresses };

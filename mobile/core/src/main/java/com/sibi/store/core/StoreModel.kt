@@ -39,7 +39,15 @@ class StoreModel @JvmOverloads constructor(application: Application, vrClientOve
     private fun filterCatalog(apps: List<StoreApp>) = catalogForClient(apps, platform == "tv", platform == "vr")
     private val _state = MutableStateFlow(StoreState(catalog=platform, deleteAfterInstall = autoDeleteDownloads(context), host = prefs.getString("url",null)?.let { Host(prefs.getString("hostName","My Mac")!!,it,prefs.getString("serverId","")!!) }))
     val state = _state.asStateFlow()
-    private val client = OkHttpClient.Builder().connectTimeout(5,TimeUnit.SECONDS).readTimeout(15,TimeUnit.SECONDS).build()
+    private val deviceId = prefs.getString("deviceId", null) ?: java.util.UUID.randomUUID().toString().also { prefs.edit().putString("deviceId", it).apply() }
+    private val client = OkHttpClient.Builder().addInterceptor { chain ->
+        val request = chain.request().newBuilder()
+            .header("X-Device-Id", deviceId)
+            .header("X-Device-Name", "${Build.MANUFACTURER} ${Build.MODEL}".replace(Regex("[^ -~]"), "").take(100))
+            .header("X-Device-Platform", if (vrClient) "vr" else if (tvClient) "tv" else "phone")
+            .build()
+        chain.proceed(request)
+    }.connectTimeout(5,TimeUnit.SECONDS).readTimeout(15,TimeUnit.SECONDS).build()
     private val work = WorkManager.getInstance(context)
     private var refreshJob: Job? = null
     private var healthJob: Job? = null

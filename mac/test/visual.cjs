@@ -54,6 +54,17 @@ const assert = require('node:assert/strict');
     assert.equal(await page.locator('tbody tr').count(),1);
     await page.getByRole('textbox',{name:'Search apps'}).fill('no-such-app');
     await page.getByText('No matching apps').waitFor();
+    await page.getByRole('button',{name:'Devices',exact:true}).click();
+    await page.getByRole('heading',{name:'No connected devices'}).waitFor();
+    const snapshot = await page.evaluate(() => window.sibi.snapshot());
+    for (const [id, name, platform] of [['quest-preview', 'Quest 3', 'vr'], ['phone-preview', 'Pixel phone', 'phone']]) {
+      const response = await fetch(`http://127.0.0.1:${snapshot.port}/api/v1/catalog?platform=phone`, { headers: { 'X-Device-Id': id, 'X-Device-Name': name, 'X-Device-Platform': platform } });
+      assert.equal(response.status, 200);
+    }
+    await page.getByText('Quest 3', {exact:true}).waitFor();
+    await page.getByText('Pixel phone', {exact:true}).waitFor();
+    assert.equal(await page.locator('.transfer-row').count(), 2);
+    await page.screenshot({path:'test-results/mac-devices.png'});
     await page.getByRole('button',{name:'Settings',exact:true}).click();
     await page.getByRole('heading',{name:'Local server'}).waitFor();
     await page.screenshot({path:'test-results/mac-settings.png'});
@@ -61,6 +72,8 @@ const assert = require('node:assert/strict');
     await page.getByRole('button',{name:'Start server',exact:true}).waitFor();
     await page.getByRole('button',{name:'Start server',exact:true}).click();
     await page.getByRole('button',{name:'Stop server',exact:true}).waitFor();
+    await page.getByRole('button',{name:'Devices',exact:true}).click();
+    await page.getByRole('heading',{name:'No connected devices'}).waitFor();
     assert.deepEqual(errors,[]);
     console.log('Electron UI: search, empty results, selection, settings and server stop/start passed.');
   } finally { await client.close(); await fs.rm(temp,{recursive:true,force:true}); }
