@@ -5,6 +5,7 @@ cd "$SCRIPT_DIR/.."
 source "$SCRIPT_DIR/env.sh"
 export CSC_IDENTITY_AUTO_DISCOVERY=false
 bash "$SCRIPT_DIR/test.sh"
-npm run package -- "$@"
+# Reuse the installed Electron runtime instead of downloading it again during packaging.
+npm run package -- --config.electronDist="$PWD/node_modules/electron/dist" "$@"
 bash "$SCRIPT_DIR/copy-desktop.sh"
 echo "Mac application created under mac/release/ (local build; no GitHub Release published)."
