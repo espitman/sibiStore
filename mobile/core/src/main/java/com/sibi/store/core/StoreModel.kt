@@ -40,9 +40,12 @@ class StoreModel @JvmOverloads constructor(application: Application, vrClientOve
     private val _state = MutableStateFlow(StoreState(catalog=platform, deleteAfterInstall = autoDeleteDownloads(context), host = prefs.getString("url",null)?.let { Host(prefs.getString("hostName","My Mac")!!,it,prefs.getString("serverId","")!!) }))
     val state = _state.asStateFlow()
     private val deviceId = prefs.getString("deviceId", null) ?: java.util.UUID.randomUUID().toString().also { prefs.edit().putString("deviceId", it).apply() }
-    private val client = OkHttpClient.Builder().addInterceptor { chain ->
+    private val deviceToken = prefs.getString("deviceToken", null) ?: java.util.UUID.randomUUID().toString().also { prefs.edit().putString("deviceToken", it).apply() }
+    private val client = OkHttpClient.Builder().followRedirects(false).followSslRedirects(false).addInterceptor { chain ->
         val request = chain.request().newBuilder()
             .header("X-Device-Id", deviceId)
+            .header("X-Device-Token", deviceToken)
+            .header("X-Device-Capabilities", "files-v1")
             .header("X-Device-Name", "${Build.MANUFACTURER} ${Build.MODEL}".replace(Regex("[^ -~]"), "").take(100))
             .header("X-Device-Platform", if (vrClient) "vr" else if (tvClient) "tv" else "phone")
             .build()
@@ -51,7 +54,9 @@ class StoreModel @JvmOverloads constructor(application: Application, vrClientOve
     private val work = WorkManager.getInstance(context)
     private var refreshJob: Job? = null
     private var healthJob: Job? = null
+    private var inboxJob: Job? = null
     private val workLive = work.getWorkInfosByTagLiveData("sibi-download")
+    private val inboxLive = work.getWorkInfosByTagLiveData("sibi-inbox")
     private fun updateDownloads(infos: List<WorkInfo>?) {
         val downloads = infos.orEmpty().groupBy { it.tags.firstOrNull { tag -> tag.startsWith("hash:") }?.removePrefix("hash:") ?: "" }.mapNotNull { (hash, tasks) ->
             if(hash.isEmpty() || hash in prefs.getStringSet("cancelledDownloads",emptySet())!!) return@mapNotNull null
@@ -65,6 +70,16 @@ class StoreModel @JvmOverloads constructor(application: Application, vrClientOve
         _state.update { it.copy(downloads=downloads) }
     }
     private val observer = Observer<List<WorkInfo>> { infos -> updateDownloads(infos); refreshStorage(false) }
+    private val inboxObserver = Observer<List<WorkInfo>> { infos ->
+        infos.orEmpty().filter { info ->
+            val key = info.outputData.getString("receiptKey") ?: return@filter false
+            info.state == WorkInfo.State.SUCCEEDED && !prefs.getBoolean("inboxAnnounced:$key",false)
+        }.lastOrNull()?.let { info ->
+            val key = info.outputData.getString("receiptKey")!!
+            prefs.edit().putBoolean("inboxAnnounced:$key",true).apply()
+            info.outputData.getString("savedName")?.let { name -> _state.update { it.copy(message="Received $name in Downloads/Sibi Store") } }
+        }
+    }
     fun refreshStorage(reconcile: Boolean = true) {
         viewModelScope.launch {
             val usage = withContext(Dispatchers.IO) {
@@ -106,6 +121,7 @@ class StoreModel @JvmOverloads constructor(application: Application, vrClientOve
     init {
         loadCachedCatalog()
         workLive.observeForever(observer)
+        inboxLive.observeForever(inboxObserver)
     }
     private fun loadCachedCatalog() {
         cacheJob?.cancel()
@@ -130,8 +146,14 @@ class StoreModel @JvmOverloads constructor(application: Application, vrClientOve
         if (healthJob?.isActive != true) healthJob = viewModelScope.launch {
             while (isActive) { delay(15000); if (!_state.value.loading) refresh() }
         }
+        if (inboxJob?.isActive != true) inboxJob = viewModelScope.launch {
+            while (isActive) {
+                _state.value.host?.takeIf { it.id.isNotEmpty() }?.let { runCatching { pollInbox(it) } }
+                delay(5000)
+            }
+        }
     }
-    fun stop() { discovery.stop(); healthJob?.cancel(); healthJob = null }
+    fun stop() { discovery.stop(); healthJob?.cancel(); healthJob = null; inboxJob?.cancel(); inboxJob = null }
     fun clearMessage() { _state.update { it.copy(error=null,message=null) } }
     fun report(message: String) { _state.update { it.copy(error=message) } }
     fun readInstallResult() { refreshStorage(); prefs.getString("installResult",null)?.let { m -> _state.update { it.copy(message=m) }; prefs.edit().remove("installResult").apply() }; refreshInstalled() }
@@ -175,6 +197,23 @@ class StoreModel @JvmOverloads constructor(application: Application, vrClientOve
         withContext(Dispatchers.IO) { catalogCache.writeText(raw) }
         _state.update { it.copy(apps=filterCatalog(apps),connected=true,error=null) }; refreshInstalled()
     }
+    private suspend fun pollInbox(host: Host) {
+        val raw = withContext(Dispatchers.IO) {
+            client.newCall(Request.Builder().url("${host.url}/api/v1/inbox").build()).execute().use {
+                require(it.isSuccessful) { "Inbox request failed (${it.code})" }
+                it.body?.string() ?: error("Empty inbox response")
+            }
+        }
+        parseInbox(raw,host.id).forEach { offer ->
+            val retryKey = "inboxRetryAfter:${host.id}:${offer.id}"
+            if (prefs.getLong(retryKey,0) > System.currentTimeMillis()) return@forEach
+            prefs.edit().remove(retryKey).apply()
+            val data = workDataOf("serverId" to host.id,"baseUrl" to host.url,"deviceId" to deviceId,"deviceToken" to deviceToken,
+                "offerId" to offer.id,"name" to offer.name,"size" to offer.size,"sha256" to offer.sha256,"downloadUrl" to offer.downloadUrl)
+            val request = OneTimeWorkRequestBuilder<InboxWorker>().setInputData(data).addTag("sibi-inbox").addTag("offer:${offer.id}").build()
+            work.enqueueUniqueWork("inbox:${host.id}:${offer.id}",ExistingWorkPolicy.KEEP,request)
+        }
+    }
     fun release(app: StoreApp) = newest(app,Build.VERSION.SDK_INT,Build.SUPPORTED_ABIS.toList())
     fun status(app: StoreApp) = availability(release(app),_state.value.installed[app.packageName])
     fun download(release: Release) {
@@ -208,5 +247,5 @@ class StoreModel @JvmOverloads constructor(application: Application, vrClientOve
         _state.update { it.copy(downloads=it.downloads - hash,message="Download cancelled") }
         // Retain private partial bytes for an explicit future retry; never install after Cancel.
     }
-    override fun onCleared() { discovery.stop(); workLive.removeObserver(observer) }
+    override fun onCleared() { discovery.stop(); inboxJob?.cancel(); workLive.removeObserver(observer); inboxLive.removeObserver(inboxObserver) }
 }

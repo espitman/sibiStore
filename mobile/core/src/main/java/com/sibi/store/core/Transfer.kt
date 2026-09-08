@@ -10,17 +10,19 @@ import okhttp3.Request
 /** The production transfer path, independently testable with a real HTTP socket. */
 suspend fun transfer(
     client: OkHttpClient, url: String, device: String, hash: String, expected: Long,
-    partial: File, final: File, progress: suspend (Long) -> Unit
+    partial: File, final: File, headers: Map<String,String> = emptyMap(), progress: suspend (Long) -> Unit
 ) {
-    require(hash.matches(Regex("[a-f0-9]{64}")) && expected > 0) { "Invalid download metadata" }
+    require(hash.matches(Regex("[a-f0-9]{64}")) && expected >= 0) { "Invalid download metadata" }
     if (final.exists()) {
         if (final.length() == expected && sha256(final) == hash) return
         require(final.delete()) { "Could not replace damaged download" }
     }
     if (partial.length() > expected) require(partial.delete()) { "Could not reset partial download" }
+    if (expected == 0L && !partial.exists()) require(partial.createNewFile()) { "Could not create empty download" }
     var offset = partial.length()
     if (offset < expected) {
         val request = Request.Builder().url(url).header("X-Device-Name", device)
+        headers.forEach { (name,value) -> request.header(name,value) }
         if (offset > 0) request.header("Range", "bytes=$offset-").header("If-Range", "\"$hash\"")
         client.newCall(request.build()).execute().use { response ->
             require(response.code == 200 || response.code == 206) { "Server returned HTTP ${response.code}" }

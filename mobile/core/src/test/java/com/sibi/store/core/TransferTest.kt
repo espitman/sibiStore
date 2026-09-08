@@ -87,4 +87,24 @@ class TransferTest {
         fetch(server,partial,final)
         assertArrayEquals(bytes,final.readBytes())
     }
+
+    @Test fun authenticatedEmptyFilePublishesWithoutNetworkRequest() = check { server, partial, final ->
+        val emptyHash = MessageDigest.getInstance("SHA-256").digest(ByteArray(0)).joinToString("") { "%02x".format(it) }
+        transfer(OkHttpClient(),server.url("/empty").toString(),"Test",emptyHash,0,partial,final,mapOf("X-Device-Token" to "secret")) {}
+        assertTrue(final.exists())
+        assertEquals(0,final.length())
+        assertEquals(0,server.requestCount)
+    }
+
+    @Test fun emptyFileStillRequiresMatchingChecksum() = check { server, partial, final ->
+        assertTrue(runCatching { transfer(OkHttpClient(),server.url("/empty").toString(),"Test","a".repeat(64),0,partial,final) {} }.isFailure)
+        assertFalse(final.exists())
+        assertEquals(0,server.requestCount)
+    }
+
+    @Test fun authenticatedTransferIncludesCredential() = check { server, partial, final ->
+        server.enqueue(MockResponse().setBody(Buffer().write(bytes)))
+        transfer(OkHttpClient(),server.url("/file").toString(),"Test",hash,bytes.size.toLong(),partial,final,mapOf("X-Device-Token" to "secret")) {}
+        assertEquals("secret",server.takeRequest().getHeader("X-Device-Token"))
+    }
 }

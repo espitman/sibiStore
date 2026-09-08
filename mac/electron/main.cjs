@@ -4,20 +4,21 @@ const fs = require('node:fs/promises');
 const crypto = require('node:crypto');
 const { Library } = require('../server/library.cjs');
 const { createServer } = require('../server/http.cjs');
-let win, library, http, tray, config, quitting = false, serverError = null;
+const { FileTransfers } = require('../server/file-transfers.cjs');
+let win, library, http, fileTransfers, tray, config, quitting = false, serverError = null;
 const demo = process.argv.includes('--design-preview');
 const dataDir = process.env.SIBI_DATA_DIR || (demo ? path.join(app.getPath('temp'), 'sibi-store-design-preview') : app.getPath('userData'));
 require('node:fs').mkdirSync(dataDir, { recursive: true });
 app.setPath('userData', dataDir);
 const configFile = path.join(dataDir, 'settings.json');
 const snapshot = () => ({ ...library.snapshot(), serverId: config.serverId, running: !!http, port: http?.port || config.port,
-  addresses: http?.addresses() || [], transfers: http?.transfers || [], devices: http?.devices() || [], serverError, discoveryError: http?.discoveryError(),
+  addresses: http?.addresses() || [], transfers: http?.transfers || [], devices: http?.devices() || [], fileTransfers: fileTransfers?.snapshot() || [], serverError, discoveryError: http?.discoveryError(),
   openAtLogin: app.getLoginItemSettings().openAtLogin, sdk: config.sdk || '', preview: demo });
 function notify() { if (win && !win.isDestroyed()) win.webContents.send('state', snapshot()); }
 async function save() { await fs.writeFile(configFile, JSON.stringify(config, null, 2)); }
 async function startServer() {
   serverError = null;
-  try { http = await createServer({ library, serverId: config.serverId, port: config.port, advertise: !demo, host: demo ? '127.0.0.1' : '0.0.0.0', onChange: notify }); }
+  try { http = await createServer({ library, serverId: config.serverId, port: config.port, advertise: !demo, host: demo ? '127.0.0.1' : '0.0.0.0', onChange: notify, fileTransfers }); }
   catch (e) { serverError = e.message; }
   notify();
 }
@@ -42,8 +43,19 @@ else app.whenReady().then(async () => {
   library = await new Library({ folder: config.folder, dataDir }).init();
   library.on('change', notify);
   if (demo) library.versions = require('../server/demo.cjs').versions;
+  fileTransfers = await new FileTransfers({ stateFile: path.join(dataDir, 'file-transfers.json'), onChange: notify }).init();
   await startServer();
   ipcMain.handle('snapshot', snapshot);
+  ipcMain.handle('stage-files', (_, paths) => fileTransfers.stage(paths));
+  ipcMain.handle('choose-send-files', async () => {
+    const result = await dialog.showOpenDialog(win, { properties: ['openFile','multiSelections'], title: 'Choose files to send' });
+    return result.canceled ? [] : fileTransfers.stage(result.filePaths);
+  });
+  ipcMain.handle('send-files', async (_, ids, targets) => {
+    if (!http) throw new Error('Start the server before sending files');
+    await fileTransfers.enqueue(ids, targets, http.deviceRegistry); return snapshot();
+  });
+  ipcMain.handle('file-transfer-action', async (_, id, action) => { await fileTransfers.action(id, action); return snapshot(); });
   ipcMain.handle('rescan', async () => { await library.scan(); return snapshot(); });
   ipcMain.handle('set-platform-override', async (_, hash, platform) => { await library.setPlatformOverride(hash, platform); return snapshot(); });
   ipcMain.handle('open-folder', () => shell.openPath(config.folder));
