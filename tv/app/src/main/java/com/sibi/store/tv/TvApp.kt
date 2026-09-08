@@ -39,6 +39,7 @@ import kotlinx.coroutines.launch
 
 // Reference: 1680 × 941 artwork, mapped to the TV's 960 × 540 logical canvas.
 @Composable fun TvApp(model: StoreModel, action: (StoreApp) -> Unit) {
+    PeerRequestPrompt()
     val state by model.state.collectAsState()
     var page by remember { mutableStateOf("Library") }
     var selected by remember { mutableStateOf<String?>(null) }
@@ -271,6 +272,7 @@ private fun androidRequirement(api: Int): String {
 
 
 @Composable private fun TvSettings(model: StoreModel, state: StoreState, modifier: Modifier = Modifier) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     var address by remember(state.host?.url) { mutableStateOf(state.host?.url ?: "") }
     LaunchedEffect(Unit) { model.refreshStorage() }
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(22.dp)) {
@@ -278,6 +280,10 @@ private fun androidRequirement(api: Int): String {
             .background(TvCardBrush, RoundedCornerShape(10.dp)).border(0.8.dp, TvBorder, RoundedCornerShape(10.dp)).padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text("Downloaded APKs", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+            TvControl(onClick = { context.startActivity(android.content.Intent(context, FilesActivity::class.java)) },
+                modifier = Modifier.fillMaxWidth().height(48.dp), selected = true) {
+                Text("Send and receive files", fontSize = 13.sp)
+            }
             TvControl(onClick = { model.setDeleteAfterInstall(!state.deleteAfterInstall) },
                 modifier = Modifier.fillMaxWidth().heightIn(min = 76.dp).semantics {
                     role = Role.Switch

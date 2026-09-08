@@ -5,6 +5,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const os = require('node:os');
 const { Devices } = require('./devices.cjs');
+const { PeerTransfers } = require('./peer-transfers.cjs');
 
 function parseRange(header, size) {
   const m = /^bytes=(\d*)-(\d*)$/.exec(header || '');
@@ -16,7 +17,7 @@ function parseRange(header, size) {
 function addresses(port) {
   return Object.values(os.networkInterfaces()).flat().filter(n => n && !n.internal && n.family === 'IPv4').map(n => `http://${n.address}:${port}`);
 }
-async function createServer({ library, serverId, port = 8743, host = '0.0.0.0', advertise = true, onChange = () => {}, fileTransfers }) {
+async function createServer({ library, serverId, port = 8743, host = '0.0.0.0', advertise = true, onChange = () => {}, fileTransfers, peerTransfers }) {
   const server = Fastify({ logger: false });
   const devices = new Devices();
   server.addHook('onResponse', async (request, reply) => {
@@ -28,6 +29,9 @@ async function createServer({ library, serverId, port = 8743, host = '0.0.0.0', 
   deviceTimer.unref();
   server.addHook('onClose', async () => { clearInterval(deviceTimer); });
   fileTransfers?.routes(server, serverId, parseRange);
+  const peers = peerTransfers || new PeerTransfers({ devices, serverId, onChange });
+  if (peerTransfers) peerTransfers.devices = devices;
+  peers.routes(server);
   server.addHook('preClose', async () => { await fileTransfers?.close(); });
   const transfers = []; let bonjour, service, nativeDiscovery;
   server.get('/api/v1/info', async () => ({ protocolVersion: 1, serverId, name: `Sibi Store — ${os.hostname()}`, port }));
@@ -107,7 +111,7 @@ async function createServer({ library, serverId, port = 8743, host = '0.0.0.0', 
       }
     } catch (e) { discoveryError = e.message; }
   }
-  return { server, transfers, devices: () => devices.snapshot(), deviceRegistry: devices, port: actualPort, addresses: () => addresses(actualPort), discoveryError: () => discoveryError,
+  return { server, transfers, devices: () => devices.snapshot(), deviceRegistry: devices, peerTransfers: peers, port: actualPort, addresses: () => addresses(actualPort), discoveryError: () => discoveryError,
     async close() { await nativeDiscovery?.close(); if (service) await new Promise(resolve => service.stop(resolve)); bonjour?.destroy(); await server.close(); } };
 }
 module.exports = { createServer, parseRange, addresses };

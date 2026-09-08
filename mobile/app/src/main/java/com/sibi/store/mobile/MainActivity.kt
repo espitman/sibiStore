@@ -28,6 +28,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         ContextCompat.registerReceiver(this,receiver,IntentFilter("$packageName.INSTALL_RESULT"),ContextCompat.RECEIVER_NOT_EXPORTED)
         setContent { SibiTheme { MobileApp(model,::action) } }
+        if(Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this,Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS),1)
         lifecycleScope.launch { repeatOnLifecycle(Lifecycle.State.RESUMED) { model.state.collect { model.claimReadyInstall()?.let { action(it) } } } }
     }
     override fun onResume() { super.onResume(); model.start() }

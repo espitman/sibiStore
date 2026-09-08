@@ -10,13 +10,15 @@ class Devices {
     const tokenHash = token.length >= 32 ? crypto.createHash('sha256').update(token).digest('hex') : '';
     if (this.credentials.has(id) && this.credentials.get(id) !== tokenHash) return;
     if (tokenHash) this.credentials.set(id, tokenHash);
-    const canReceiveFiles = !!tokenHash && !id.startsWith('ip:') && text(request.headers['x-device-capabilities'], 100).split(',').includes('files-v1');
+    const capabilities = text(request.headers['x-device-capabilities'], 100).split(',');
+    const canReceiveFiles = !!tokenHash && !id.startsWith('ip:') && capabilities.includes('files-v1');
+    const canPeer = !!tokenHash && !id.startsWith('ip:') && capabilities.includes('peers-v1');
     const type = text(request.headers['x-device-platform'], 10) || request.query?.platform;
     const platform = ['phone', 'tv', 'vr'].includes(type) ? type : 'unknown';
     const previous = this.entries.get(id);
     this.entries.delete(id);
     this.entries.set(id, { id, name: text(request.headers['x-device-name'], 100) || previous?.name || 'Unknown device',
-      platform, canReceiveFiles, address: request.ip, lastSeen: this.now() });
+      platform, canReceiveFiles, canPeer, address: request.ip, lastSeen: this.now() });
     if (this.entries.size > 256) { const oldest = this.entries.keys().next().value; this.entries.delete(oldest); this.credentials.delete(oldest); }
   }
   credential(id) { return this.credentials.get(id); }

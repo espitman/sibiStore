@@ -16,6 +16,8 @@ import androidx.lifecycle.ViewModelStore
 import com.sibi.store.core.Availability
 import com.sibi.store.core.Download
 import com.sibi.store.core.Host
+import com.sibi.store.core.FilesActivity
+import com.sibi.store.core.PeerManager
 import com.sibi.store.core.Release
 import com.sibi.store.core.StoreApp
 import com.sibi.store.core.StoreModel
@@ -48,6 +50,7 @@ import org.json.JSONObject
  * - `download`, `action`: an app package name.
  * - `pause`, `resume`, `cancel`: a download SHA-256 hash.
  * - `deleteAfterInstall`: `true` or `false`.
+ * - `files`: opens the native nearby file-sharing screen.
  * - `lifecycleResume`, `lifecyclePause`: empty value.
  *
  * The bridge starts resumed because Unity normally creates it from an active
@@ -55,6 +58,7 @@ import org.json.JSONObject
  * commands and call [close] before discarding the bridge.
  */
 class StoreBridge(private val activity: Activity) {
+    private val peers = PeerManager.get(activity.applicationContext)
     @Volatile
     private var snapshotJson = initialSnapshot()
 
@@ -84,7 +88,12 @@ class StoreBridge(private val activity: Activity) {
     }
 
     /** Returns the latest complete JSON snapshot without blocking Unity's thread. */
-    fun snapshot(): String = snapshotJson
+    fun snapshot(): String = JSONObject(snapshotJson).put("peerRequests", JSONArray().apply {
+        peers.state.value.transfers.filter { it.incoming && it.status == "pending" }.forEach { request ->
+            put(JSONObject().put("id", request.id).put("senderName", request.senderName)
+                .put("summary", "${request.files.firstOrNull()?.name?.take(70) ?: "Files"}${if(request.files.size>1) " + ${request.files.size-1} more" else ""} · ${bytesLabel(request.files.sumOf { it.size })}"))
+        }
+    }).toString()
 
     /** Dispatches one of the commands documented on [StoreBridge]. */
     fun command(action: String, value: String) {
@@ -101,6 +110,8 @@ class StoreBridge(private val activity: Activity) {
 
     private fun initialize() {
         if (closed || model != null) return
+        requestNotificationPermission()
+        peers.start()
         val ownerStore = ViewModelStore()
         // Unity imports peer AARs: do not depend on their resource merge priority
         // to select the VR catalog instead of the phone default.
@@ -142,6 +153,9 @@ class StoreBridge(private val activity: Activity) {
             "cancel" -> store.cancel(requireHash(value))
             "clearDownloads" -> store.clearDownloads()
             "deleteAfterInstall" -> store.setDeleteAfterInstall(parseBoolean(value))
+            "files" -> activity.startActivity(Intent(activity, FilesActivity::class.java))
+            "peerAccept" -> peers.decide(value, true)
+            "peerReject" -> peers.decide(value, false)
             "dismissMessage" -> store.clearMessage()
             "lifecycleResume" -> {
                 resumed = true

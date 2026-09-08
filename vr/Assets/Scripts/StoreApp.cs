@@ -12,7 +12,8 @@ namespace Sibi.Store.VR {
 [Serializable] public class StoreEntry { public string packageName, title, icon, availability, versionName; public long versionCode, size; public StoreVersion availableVersion; public StoreVersion[] versions; public StoreDownload download; public StoreAction primaryAction; public StoreAction[] actions; }
 [Serializable] public class StoreStorage { public long bytes; public int files; public string label; public bool clearing; }
 [Serializable] public class StoreSettings { public bool deleteAfterInstall; }
-[Serializable] public class StoreSnapshot { public string catalog; public int schemaVersion; public bool ready, connected, loading; public StoreHost host; public StoreHost[] hosts; public StoreEntry[] apps; public StoreDownload[] downloads; public StoreStorage storage; public StoreSettings settings; public string error, message; }
+[Serializable] public class PeerRequest { public string id, senderName, summary; }
+[Serializable] public class StoreSnapshot { public string catalog; public int schemaVersion; public bool ready, connected, loading; public StoreHost host; public StoreHost[] hosts; public StoreEntry[] apps; public StoreDownload[] downloads; public StoreStorage storage; public StoreSettings settings; public PeerRequest[] peerRequests; public string error, message; }
 
 public sealed class StoreApp : MonoBehaviour {
     static readonly Color Gold = new Color(1,.757f,.027f), Ink = new Color(.025f,.025f,.03f), Card = new Color(.075f,.075f,.085f), Muted = new Color(.65f,.65f,.69f);
@@ -126,7 +127,16 @@ public sealed class StoreApp : MonoBehaviour {
     void Render(bool preserveScroll=false){
         var position=activeScroll!=null?activeScroll.content.anchoredPosition:Vector2.zero;activeScroll=null;
         RenderBody();
+        PeerPrompt();
         if(preserveScroll && activeScroll!=null){Canvas.ForceUpdateCanvases();activeScroll.content.anchoredPosition=position;}
+    }
+    void PeerPrompt(){
+        var requests=state.peerRequests??Array.Empty<PeerRequest>();if(requests.Length==0)return;var request=requests[0];
+        Image(body,"Incoming file request",376,0,538,132,new Color(.19f,.16f,.06f));
+        Label(body,(request.senderName??"Nearby device")+" wants to send files",392,10,500,34,21,Gold);
+        Label(body,request.summary??"Incoming files",392,45,500,28,17,Color.white);
+        Button(body,"Reject",392,78,226,43,()=>Send("peerReject",request.id),false);
+        Button(body,"Accept",636,78,258,43,()=>Send("peerAccept",request.id));
     }
     void RenderBody(){
         foreach(Transform child in body)Destroy(child.gameObject);
@@ -147,11 +157,12 @@ public sealed class StoreApp : MonoBehaviour {
             var list=Scroll(body,0,150,914,400,Math.Max(400,hosts.Length*112));for(int i=0;i<hosts.Length;i++){var host=hosts[i];int y=i*112;Label(list,host.name,12,y+4,650,46,24,Color.white);Label(list,host.url,12,y+48,640,32,18,Muted);Button(list,"Connect",704,y+15,190,64,()=>Send("connect",JsonUtility.ToJson(host)));}
         }else if(page=="Settings"){
             Label(body,"Downloaded APKs",10,75,800,40,26,Color.white);Label(body,(state.storage?.label??"0 KB")+"  ·  "+(state.storage?.files??0)+" files",10,123,850,35,22,Muted);
-            var enabled=state.settings?.deleteAfterInstall??true;Button(body,"Delete after successful install: "+(enabled?"ON":"OFF"),0,183,900,70,()=>Send("deleteAfterInstall",(!enabled).ToString().ToLower()));
-            Label(body,"Files are removed only after installation is confirmed.",10,272,870,48,21,Muted);
-            Button(body,confirmClear?"Confirm: clear downloaded files":"Clear downloaded files",0,340,650,68,()=>{if(confirmClear){Send("clearDownloads");confirmClear=false;}else confirmClear=true;Render();},false,!(state.storage?.clearing??false));
-            if(confirmClear)Button(body,"Keep files",670,340,230,68,()=>{confirmClear=false;Render();});
-            Label(body,"Active downloads and files being installed are kept.",10,430,870,50,21,Muted);
+            Button(body,"Send and receive files",0,176,900,64,()=>Send("files"));
+            var enabled=state.settings?.deleteAfterInstall??true;Button(body,"Delete after successful install: "+(enabled?"ON":"OFF"),0,258,900,64,()=>Send("deleteAfterInstall",(!enabled).ToString().ToLower()));
+            Label(body,"Files are removed only after installation is confirmed.",10,330,870,42,20,Muted);
+            Button(body,confirmClear?"Confirm: clear downloaded files":"Clear downloaded files",0,390,650,64,()=>{if(confirmClear){Send("clearDownloads");confirmClear=false;}else confirmClear=true;Render();},false,!(state.storage?.clearing??false));
+            if(confirmClear)Button(body,"Keep files",670,390,230,64,()=>{confirmClear=false;Render();});
+            Label(body,"Active downloads and files being installed are kept.",10,470,870,44,20,Muted);
         }else{
             var downloads=state.downloads??Array.Empty<StoreDownload>();if(downloads.Length==0)Label(body,"No downloads yet",10,135,850,70,28,Muted);
             var list=Scroll(body,0,70,914,490,Math.Max(490,downloads.Length*156));

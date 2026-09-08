@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.sp
 import com.sibi.store.core.*
 
 @Composable fun MobileApp(model: StoreModel, action: (StoreApp)->Unit) {
+    PeerRequestPrompt()
     val state by model.state.collectAsState()
     var tab by remember { mutableStateOf("Library") }; var selected by remember { mutableStateOf<String?>(null) }
     val app = state.apps.find { it.packageName == selected }
@@ -137,9 +138,13 @@ import com.sibi.store.core.*
 }
 
 @Composable private fun SettingsScreen(model: StoreModel, state: StoreState) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     LaunchedEffect(Unit) { model.refreshStorage() }
     Column(Modifier.verticalScroll(rememberScrollState()).padding(22.dp),verticalArrangement=Arrangement.spacedBy(22.dp)) {
         Text("Settings",fontSize=28.sp,fontWeight=FontWeight.Bold)
+        Button(onClick={context.startActivity(android.content.Intent(context, FilesActivity::class.java))},modifier=Modifier.fillMaxWidth().height(52.dp),colors=ButtonDefaults.buttonColors(containerColor=Gold,contentColor=DeepBlack)) {
+            Icon(Icons.Outlined.FolderOpen,null,Modifier.size(20.dp)); Spacer(Modifier.width(9.dp)); Text("Send and receive files")
+        }
         Surface(color=Panel,shape=RoundedCornerShape(14.dp)) {
             Column(Modifier.padding(18.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
                 Text("Downloaded APKs",fontSize=20.sp,fontWeight=FontWeight.SemiBold)

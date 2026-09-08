@@ -84,7 +84,7 @@ class InboxWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
                     setProgress(workDataOf("bytes" to done,"total" to expected))
                 }
                 postStatus("receiving",expected,null)
-                val saved = publish(verified,name)
+                val saved = publishReceivedFile(applicationContext,verified,name)
                 check(prefs.edit().putString(savedKey,saved).commit()) { "Could not save transfer receipt" }
                 verified.delete()
             }
@@ -124,29 +124,6 @@ class InboxWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         }
     }
 
-    private fun publish(source: File, name: String): String {
-        if (Build.VERSION.SDK_INT >= 29) {
-            val values = ContentValues().apply {
-                put(MediaStore.Downloads.DISPLAY_NAME,name)
-                val extension = name.substringAfterLast('.',"").lowercase()
-                put(MediaStore.Downloads.MIME_TYPE,MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension) ?: "application/octet-stream")
-                put(MediaStore.Downloads.RELATIVE_PATH,"${Environment.DIRECTORY_DOWNLOADS}/Sibi Store")
-                put(MediaStore.Downloads.IS_PENDING,1)
-            }
-            val resolver = applicationContext.contentResolver
-            val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI,values) ?: error("Could not create Downloads file")
-            try {
-                resolver.openOutputStream(uri,"w")!!.use { output -> FileInputStream(source).use { it.copyTo(output) } }
-                values.clear(); values.put(MediaStore.Downloads.IS_PENDING,0); resolver.update(uri,values,null,null)
-            } catch (e: Exception) { resolver.delete(uri,null,null); throw e }
-            return name
-        }
-        val folder = File(applicationContext.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),"Sibi Store").apply { mkdirs() }
-        val target = reserveUniqueFile(folder,name)
-        try { FileInputStream(source).use { input -> FileOutputStream(target,false).use { input.copyTo(it) } } }
-        catch (e: Exception) { target.delete(); throw e }
-        return target.name
-    }
 
     private fun notification(name: String): ForegroundInfo {
         val nm = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -179,3 +156,27 @@ private fun reserveUniqueFile(folder: File, name: String): File {
         index++
     }
 }
+
+internal fun publishReceivedFile(context: Context, source: File, name: String): String {
+        if (Build.VERSION.SDK_INT >= 29) {
+            val values = ContentValues().apply {
+                put(MediaStore.Downloads.DISPLAY_NAME,name)
+                val extension = name.substringAfterLast('.',"").lowercase()
+                put(MediaStore.Downloads.MIME_TYPE,MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension) ?: "application/octet-stream")
+                put(MediaStore.Downloads.RELATIVE_PATH,"${Environment.DIRECTORY_DOWNLOADS}/Sibi Store")
+                put(MediaStore.Downloads.IS_PENDING,1)
+            }
+            val resolver = context.contentResolver
+            val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI,values) ?: error("Could not create Downloads file")
+            try {
+                resolver.openOutputStream(uri,"w")!!.use { output -> FileInputStream(source).use { it.copyTo(output) } }
+                values.clear(); values.put(MediaStore.Downloads.IS_PENDING,0); resolver.update(uri,values,null,null)
+            } catch (e: Exception) { resolver.delete(uri,null,null); throw e }
+            return name
+        }
+        val folder = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),"Sibi Store").apply { mkdirs() }
+        val target = reserveUniqueFile(folder,name)
+        try { FileInputStream(source).use { input -> FileOutputStream(target,false).use { input.copyTo(it) } } }
+        catch (e: Exception) { target.delete(); throw e }
+        return target.name
+    }

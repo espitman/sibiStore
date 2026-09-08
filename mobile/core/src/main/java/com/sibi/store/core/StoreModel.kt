@@ -45,7 +45,7 @@ class StoreModel @JvmOverloads constructor(application: Application, vrClientOve
         val request = chain.request().newBuilder()
             .header("X-Device-Id", deviceId)
             .header("X-Device-Token", deviceToken)
-            .header("X-Device-Capabilities", "files-v1")
+            .header("X-Device-Capabilities", "files-v1,peers-v1")
             .header("X-Device-Name", "${Build.MANUFACTURER} ${Build.MODEL}".replace(Regex("[^ -~]"), "").take(100))
             .header("X-Device-Platform", if (vrClient) "vr" else if (tvClient) "tv" else "phone")
             .build()
@@ -142,7 +142,7 @@ class StoreModel @JvmOverloads constructor(application: Application, vrClientOve
         refresh()
     }
     fun start() {
-        discovery.start(); refresh(); refreshInstalled(); readInstallResult()
+        discovery.start(); refresh(); refreshInstalled(); readInstallResult(); PeerManager.get(context).start()
         if (healthJob?.isActive != true) healthJob = viewModelScope.launch {
             while (isActive) { delay(15000); if (!_state.value.loading) refresh() }
         }
@@ -180,8 +180,10 @@ class StoreModel @JvmOverloads constructor(application: Application, vrClientOve
                 val verified = host.copy(name=info.getString("name"),id=id)
                 prefs.edit().putString("url",verified.url).putString("serverId",id).putString("hostName",verified.name).apply()
                 if (_state.value.host?.id != id) { cache.delete(); _state.update { it.copy(apps=emptyList(),installed=emptyMap()) } }
+                val newPeerHost = _state.value.host?.id != id
                 _state.update { it.copy(host=verified) }
                 fetchCatalog(verified)
+                if (newPeerHost) PeerManager.get(context).start()
             } catch(e: CancellationException) { throw e }
             catch(e: Exception) { _state.update { it.copy(connected=false,error=e.message ?: "Could not connect") } }
             finally { if (isActive) _state.update { it.copy(loading=false) } }
