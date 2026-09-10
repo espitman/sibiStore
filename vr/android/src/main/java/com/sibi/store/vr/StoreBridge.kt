@@ -2,6 +2,8 @@ package com.sibi.store.vr
 
 import android.Manifest
 import android.app.Activity
+import android.content.ActivityNotFoundException
+import android.content.ComponentName
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -240,14 +242,36 @@ class StoreBridge(private val activity: Activity) {
     }
 
     private fun openApp(app: StoreApp) {
-        val intent = if (model?.release(app)?.vr == true) Intent(Intent.ACTION_MAIN)
-            .addCategory(VR_LAUNCHER_CATEGORY).setPackage(app.packageName)
-        else activity.packageManager.getLaunchIntentForPackage(app.packageName)
-        try {
-            require(intent != null && intent.resolveActivity(activity.packageManager) != null) {
-                "This app has no launchable activity"
+        val pm = activity.packageManager
+        var lastFailure: Exception? = null
+        fun attempt(intent: Intent?): Boolean {
+            if (intent == null) return false
+            return try {
+                // Horizon OS can launch an intent even when resolveActivity returns null.
+                activity.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
+                true
+            } catch (error: ActivityNotFoundException) {
+                lastFailure = error; false
+            } catch (error: SecurityException) {
+                lastFailure = error; false
             }
-            activity.startActivity(intent)
+        }
+        try {
+            if (attempt(Intent(Intent.ACTION_MAIN).addCategory(VR_LAUNCHER_CATEGORY).setPackage(app.packageName))) return
+            if (attempt(pm.getLaunchIntentForPackage(app.packageName))) return
+            if (attempt(pm.getLeanbackLaunchIntentForPackage(app.packageName))) return
+            @Suppress("DEPRECATION")
+            val info = pm.getPackageInfo(app.packageName, PackageManager.GET_ACTIVITIES or PackageManager.GET_META_DATA)
+            for (entry in info.activities.orEmpty()) {
+                val unity = entry.metaData?.getBoolean("unityplayer.UnityActivity", false) == true ||
+                    entry.name.substringAfterLast('.') in setOf("UnityPlayerActivity", "UnityPlayerGameActivity")
+                val setting = pm.getComponentEnabledSetting(ComponentName(app.packageName, entry.name))
+                val enabled = setting == PackageManager.COMPONENT_ENABLED_STATE_ENABLED ||
+                    (setting == PackageManager.COMPONENT_ENABLED_STATE_DEFAULT && entry.enabled)
+                if (entry.applicationInfo.enabled && enabled && entry.exported && unity &&
+                    attempt(Intent(Intent.ACTION_MAIN).setComponent(ComponentName(app.packageName, entry.name)))) return
+            }
+            model?.report("Could not open ${app.title}: ${lastFailure?.message ?: "no supported launcher was found"}")
         } catch (error: Exception) {
             model?.report(error.message ?: "Could not open this app")
         }

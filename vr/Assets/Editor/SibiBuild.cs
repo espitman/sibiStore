@@ -16,7 +16,7 @@ public static class SibiBuild {
     public static void Prepare() {
         PlayerSettings.companyName="Sibi";PlayerSettings.productName="Sibi Store VR";
         PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android,"com.sibi.store.vr");
-        PlayerSettings.bundleVersion="0.1.4";PlayerSettings.Android.bundleVersionCode=5;
+        PlayerSettings.bundleVersion="0.1.5";PlayerSettings.Android.bundleVersionCode=6;
         PlayerSettings.Android.minSdkVersion=AndroidSdkVersions.AndroidApiLevel29;
         PlayerSettings.Android.targetSdkVersion=AndroidSdkVersions.AndroidApiLevel35;
         PlayerSettings.Android.targetArchitectures=AndroidArchitecture.ARM64;
